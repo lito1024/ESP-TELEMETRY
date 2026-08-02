@@ -1,0 +1,9 @@
+.pio/
+.pioenvs/
+.piolibdeps/
+build/
+*.log
+*.tmp
+*.patch
+*.diff
+__pycache__/

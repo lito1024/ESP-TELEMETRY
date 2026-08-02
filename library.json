@@ -1,0 +1,18 @@
+{
+  "name": "ESP-DISPLAY-PROTOCOL",
+  "version": "0.1.0",
+  "description": "Transport-independent Sweet Power display snapshot protocol",
+  "keywords": "esp32,display,protocol,uart,luxpower",
+  "authors": [
+    {
+      "name": "Alexander Melnik"
+    }
+  ],
+  "license": "MIT",
+  "frameworks": "*",
+  "platforms": "*",
+  "build": {
+    "srcDir": "src",
+    "includeDir": "src"
+  }
+}
