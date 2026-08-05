@@ -1,38 +1,53 @@
-# ESP-DISPLAY-PROTOCOL
+# ESP-TELEMETRY
 
-Transport-independent binary telemetry protocol for ESP devices.
+Transport-independent binary telemetry protocol and transport abstraction for
+ESP devices.
 
-The library defines a small snapshot frame that can carry inverter/display data
-from a gateway to a renderer. It intentionally does not know whether bytes move
-over UART, MQTT, ESP-NOW, TCP, files, or test fixtures.
+The library defines versioned telemetry frames shared by gateways, displays,
+diagnostics tools, simulators, and future transports. It intentionally does not
+know the business logic behind a value; producers publish semantic field IDs and
+receivers decode them without knowing Modbus, LuxPower, LVGL, or aggregation.
 
 ## Architecture
 
 ```text
-data source -> gateway -> protocol frame bytes -> any transport -> receiver
+data source -> gateway -> ESP-TELEMETRY frame -> selected transport -> receiver
 ```
 
 The protocol library provides only:
 
-- frame encoder;
+- v1 compatibility snapshot encoder;
+- v2 grouped telemetry encoder;
 - incremental decoder;
 - CRC16/Modbus;
 - sequence numbers;
 - protocol versioning;
-- fixed-width integer payload types.
+- fixed-width integer payload types;
+- `ITelemetryTransport`;
+- UART and ESP-NOW transport adapters.
+- fixed-capacity trusted peer management for ESP-NOW sender validation.
 
-Transport setup, retries, buffering, logging, networking, and rendering belong
-outside this library.
+Gateway/display applications choose the transport and own retries, buffering,
+logging, networking, rendering, and domain-specific behavior.
 
 ## Frame Version
 
-Supported frame version: `1`.
+Supported frame versions:
 
-Current snapshot message type: `1`.
+- `1`: legacy fixed snapshot frame.
+- `2`: grouped semantic telemetry frames.
+
+Current message types:
+
+- `1`: v1 snapshot.
+- `16`: fast telemetry.
+- `17`: energy totals.
+- `18`: status.
+- `19`: diagnostics.
 
 ## Snapshot Frame
 
-Snapshot frames are exactly 48 bytes:
+Legacy snapshot frames are exactly 48 bytes:
 
 | Section | Size |
 | --- | ---: |
@@ -59,52 +74,55 @@ Payload fields use scaled integers:
 - PV1 Energy Total, Wh;
 - flags for feed-in enabled, TCP connected, input cache valid, and holding cache
   valid;
-- reserved bytes for future metrics.
+- reserved bytes; byte 0 carries the telemetry `device_id` in Stage 24.2+
+  frames.
 
 No float values are transmitted on the wire.
 
 CRC is CRC16/Modbus with polynomial `0xA001`, initial value `0xFFFF`, and
 little-endian transmission.
 
-See [docs/Protocol.md](docs/Protocol.md) for the complete field map.
+See [docs/Protocol.md](docs/Protocol.md) for the v1 field map and
+[docs/ProtocolV2.md](docs/ProtocolV2.md) for v2 grouped telemetry. See
+[docs/PeerManager.md](docs/PeerManager.md) for the ESP-NOW trusted peer model.
 
 ## Encoder Example
 
 ```cpp
-#include "DisplayProtocol.h"
+#include "ESPTelemetry.h"
 
-DisplayProtocol::SnapshotPayload payload{};
+ESPTelemetry::SnapshotPayload payload{};
 payload.pv1PowerW = 2276;
 payload.pv2PowerW = 1739;
 payload.batterySocX10 = 1000;
 payload.batteryChargePowerW = 0;
 payload.batteryDischargePowerW = 0;
 payload.pv1EnergyWh = 123456;
-payload.flags = DisplayProtocol::SnapshotFlagTcpConnected |
-                DisplayProtocol::SnapshotFlagInputCacheValid;
+payload.flags = ESPTelemetry::SnapshotFlagTcpConnected |
+                ESPTelemetry::SnapshotFlagInputCacheValid;
 
-uint8_t frame[DisplayProtocol::kHeaderSize +
-              DisplayProtocol::kSnapshotPayloadSize +
-              DisplayProtocol::kCrcSize]{};
+uint8_t frame[ESPTelemetry::kHeaderSize +
+              ESPTelemetry::kSnapshotPayloadSize +
+              ESPTelemetry::kCrcSize]{};
 
-const size_t length = DisplayProtocol::encodeSnapshot(
+const size_t length = ESPTelemetry::encodeSnapshot(
     payload, 42, 12345678, frame, sizeof(frame));
 ```
 
 ## Decoder Example
 
 ```cpp
-#include "DisplayProtocol.h"
+#include "ESPTelemetry.h"
 
-DisplayProtocol::Decoder decoder;
-DisplayProtocol::Frame frame{};
+ESPTelemetry::Decoder decoder;
+ESPTelemetry::Frame frame{};
 
 for (uint8_t byte : incoming_bytes) {
     const auto result = decoder.feed(byte, now_ms, frame);
-    if (result == DisplayProtocol::DecodeResult::FrameReady ||
-        result == DisplayProtocol::DecodeResult::SequenceGap) {
-        DisplayProtocol::SnapshotPayload snapshot{};
-        if (DisplayProtocol::decodeSnapshotPayload(frame, snapshot)) {
+    if (result == ESPTelemetry::DecodeResult::FrameReady ||
+        result == ESPTelemetry::DecodeResult::SequenceGap) {
+        ESPTelemetry::SnapshotPayload snapshot{};
+        if (ESPTelemetry::decodeSnapshotPayload(frame, snapshot)) {
             // Use snapshot.
         }
     }
@@ -145,7 +163,7 @@ Pin a release tag:
 
 ```ini
 lib_deps =
-    https://github.com/lito1024/ESP-DISPLAY-PROTOCOL.git#v0.1.0
+    https://github.com/lito1024/ESP-TELEMETRY.git#v0.2.0
 ```
 
 ## Arduino Library Dependency
@@ -154,7 +172,7 @@ Use the GitHub repository URL in Arduino tooling and pin project builds to a
 tag where the tool supports it:
 
 ```text
-https://github.com/lito1024/ESP-DISPLAY-PROTOCOL.git#v0.1.0
+https://github.com/lito1024/ESP-TELEMETRY.git#v0.2.0
 ```
 
 ## Version Pinning

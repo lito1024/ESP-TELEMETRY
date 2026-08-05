@@ -1,4 +1,4 @@
-# ESP-DISPLAY-PROTOCOL Wire Format
+# ESP-TELEMETRY Wire Format
 
 Version: 1
 
