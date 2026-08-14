@@ -130,6 +130,44 @@ public:
         return true;
     }
 
+    // Stage 36: send to an explicit destination peer, distinct from the
+    // single fixed peer_ configured at construction (used by Bridge to
+    // route a command to whichever Gateway a device_id maps to, and by
+    // Gateway to reply to whichever peer -- always the Bridge -- sent the
+    // command). Registers the peer with ESP-NOW on demand if not already
+    // present; does not affect the fixed-peer send() path above.
+    bool sendTo(const uint8_t *peerMac, const uint8_t *data, size_t length)
+    {
+        if (peerMac == nullptr || data == nullptr || length == 0 || length > ESP_NOW_MAX_DATA_LEN)
+        {
+            ++stats_.sendFailures;
+            health_ = TelemetryTransportHealth::Degraded;
+            return false;
+        }
+
+        if (!registerEspNowPeer(peerMac))
+        {
+            ++stats_.sendFailures;
+            health_ = TelemetryTransportHealth::Degraded;
+            return false;
+        }
+
+        sendStartedUs_ = nowUs();
+        const esp_err_t result = esp_now_send(peerMac, data, length);
+        if (result != ESP_OK)
+        {
+            ++stats_.sendFailures;
+            health_ = TelemetryTransportHealth::Degraded;
+            return false;
+        }
+
+        ++stats_.packetsSent;
+        stats_.bytesSent += static_cast<uint32_t>(length);
+        lastSendMs_ = nowMs();
+        health_ = TelemetryTransportHealth::Ready;
+        return true;
+    }
+
     size_t available() override
     {
         return queuedLength_;

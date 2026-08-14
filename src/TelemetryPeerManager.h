@@ -11,6 +11,8 @@ namespace ESPTelemetry
 static constexpr uint8_t kDeviceIdAggregate = 0;
 static constexpr uint8_t kDeviceIdInverter1 = 1;
 static constexpr uint8_t kDeviceIdInverter2 = 2;
+static constexpr uint8_t kDeviceIdControllerSystem = 3;
+static constexpr uint8_t kDeviceIdGarageSensor = 4;
 static constexpr size_t kDefaultTelemetryPeerCapacity = 4;
 
 // One logical telemetry stream is identified by (protocol version, message type).

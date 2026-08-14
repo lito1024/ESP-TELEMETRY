@@ -253,6 +253,64 @@ bool decodeTelemetryPayload(const Frame &frame, TelemetryPayload &payload)
     return true;
 }
 
+size_t encodeCommand(const CommandPayload &payload, uint16_t sequence, uint32_t timestampMs, uint8_t *out, size_t capacity)
+{
+    uint8_t payloadBytes[kCommandPayloadSize]{};
+    payloadBytes[0] = payload.deviceId;
+    payloadBytes[1] = payload.commandId;
+    writeU16(payloadBytes + 2, payload.commandSequence);
+    writeU32(payloadBytes + 4, static_cast<uint32_t>(payload.value));
+    return encodeFrame(kVersionV2, kMessageTypeCommand, payloadBytes, static_cast<uint16_t>(kCommandPayloadSize),
+                       sequence, timestampMs, out, capacity);
+}
+
+bool decodeCommandPayload(const Frame &frame, CommandPayload &payload)
+{
+    if (frame.version != kVersionV2 || frame.messageType != kMessageTypeCommand ||
+        frame.payloadLength != kCommandPayloadSize)
+    {
+        return false;
+    }
+
+    payload.deviceId = frame.payload[0];
+    payload.commandId = frame.payload[1];
+    payload.commandSequence = readU16(frame.payload + 2);
+    payload.value = static_cast<int32_t>(readU32(frame.payload + 4));
+    return true;
+}
+
+size_t encodeCommandResult(const CommandResultPayload &payload, uint16_t sequence, uint32_t timestampMs, uint8_t *out, size_t capacity)
+{
+    uint8_t payloadBytes[kCommandResultPayloadSize]{};
+    payloadBytes[0] = payload.deviceId;
+    payloadBytes[1] = payload.commandId;
+    writeU16(payloadBytes + 2, payload.commandSequence);
+    payloadBytes[4] = payload.resultCode;
+    writeU32(payloadBytes + 5, static_cast<uint32_t>(payload.requestedValue));
+    writeU32(payloadBytes + 9, static_cast<uint32_t>(payload.previousValue));
+    writeU32(payloadBytes + 13, static_cast<uint32_t>(payload.readbackValue));
+    return encodeFrame(kVersionV2, kMessageTypeCommandResult, payloadBytes, static_cast<uint16_t>(kCommandResultPayloadSize),
+                       sequence, timestampMs, out, capacity);
+}
+
+bool decodeCommandResultPayload(const Frame &frame, CommandResultPayload &payload)
+{
+    if (frame.version != kVersionV2 || frame.messageType != kMessageTypeCommandResult ||
+        frame.payloadLength != kCommandResultPayloadSize)
+    {
+        return false;
+    }
+
+    payload.deviceId = frame.payload[0];
+    payload.commandId = frame.payload[1];
+    payload.commandSequence = readU16(frame.payload + 2);
+    payload.resultCode = frame.payload[4];
+    payload.requestedValue = static_cast<int32_t>(readU32(frame.payload + 5));
+    payload.previousValue = static_cast<int32_t>(readU32(frame.payload + 9));
+    payload.readbackValue = static_cast<int32_t>(readU32(frame.payload + 13));
+    return true;
+}
+
 Decoder::Decoder()
 {
     reset();
@@ -387,7 +445,10 @@ DecodeResult Decoder::finishFrame(Frame &frame)
     // payload decode. Falls back to 0 for anything else (unknown/legacy
     // message types), preserving pre-Stage-32 single-device behavior.
     uint8_t deviceIdForSequencing = 0;
-    if (frame.version == kVersionV2 && messageTypeIsV2Telemetry(frame.messageType) && frame.payloadLength >= 1)
+    if (frame.version == kVersionV2 &&
+        (messageTypeIsV2Telemetry(frame.messageType) || frame.messageType == kMessageTypeCommand ||
+         frame.messageType == kMessageTypeCommandResult) &&
+        frame.payloadLength >= 1)
     {
         deviceIdForSequencing = frame.payload[0];
     }

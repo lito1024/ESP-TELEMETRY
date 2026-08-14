@@ -25,7 +25,9 @@ Protocol v2 keeps the existing `SPDP` magic and CRC16 protection while allowing 
 | 17 | ENERGY_TOTALS | Energy counters, about every 30 seconds. |
 | 18 | STATUS | Read-only status flags, about every 5 seconds. |
 | 19 | DIAGNOSTICS | Gateway/protocol diagnostics plus lower-cadence production fields. |
-| 32-63 | Future command range | Reserved; not implemented in Stage 22A. |
+| 32 | COMMAND | Controller -> Gateway typed command request. |
+| 33 | COMMAND_RESULT | Gateway -> Controller typed command result. |
+| 34-63 | Future command range | Reserved for future typed commands. |
 
 ## V2 Telemetry Payload
 
@@ -33,10 +35,11 @@ No floats are sent on the wire. Values are signed 32-bit scaled integers.
 
 | Offset | Size | Field | Description |
 | --- | --- | --- | --- |
-| 0 | 1 | group_id | 1 fast, 2 energy, 3 status, 4 diagnostics |
-| 1 | 1 | field_count | number of following field records |
-| 2 | 2 | group_flags | bit 0 = group values valid, bit 1 = cache valid |
-| 4 | 6 * field_count | records | `field_id:u16` + `value:i32`, little-endian |
+| 0 | 1 | device_id | Source identity: `1` inverter 1, `2` inverter 2, `3` Controller/system, `4` Garage Sensor |
+| 1 | 1 | group_id | 1 fast, 2 energy, 3 status, 4 diagnostics |
+| 2 | 1 | field_count | number of following field records |
+| 3 | 2 | group_flags | bit 0 = group values valid, bit 1 = cache valid |
+| 5 | 6 * field_count | records | `field_id:u16` + `value:i32`, little-endian |
 
 Unknown field IDs and unknown message types are skipped after CRC validation.
 
@@ -52,7 +55,9 @@ Stage 28 policy: all fields listed here are production (status `PRODUCTION`, `UN
 | 2002 | battery_charge_power | Battery Charge Power | FAST_TELEMETRY | FAST | int32 | 1 | W | PRODUCTION |
 | 2003 | battery_discharge_power | Battery Discharge Power | FAST_TELEMETRY | FAST | int32 | 1 | W | PRODUCTION |
 | 5001 | pv1_energy_total | PV1 Energy Total | ENERGY_TOTALS | SLOW | int32 | 1000 | kWh | PRODUCTION |
-| 7001 | feed_in_grid_enabled | Feed-In Grid Enabled | STATUS | NORMAL | bool | 1 |  | PRODUCTION |
+| 7001 | feed_in_grid_enabled | Feed-In Grid Enabled | STATUS | NORMAL | bool | 1 |  | UNDER_REVIEW |
+| 7002 | max_backflow_power | Max Backflow Power | STATUS | NORMAL | int32 | 1 | % | PRODUCTION |
+| 7003 | zero_export_enabled | Zero Export | STATUS | NORMAL | bool | 1 |  | PRODUCTION |
 | 9001 | battery_capacity | Battery Capacity | DIAGNOSTICS | SLOW | int32 | 1 | Ah | PRODUCTION |
 | 9002 | bms_max_cell_temperature | BMS Max Cell Temperature | DIAGNOSTICS | NORMAL | int32 | 10 | deg C | PRODUCTION |
 | 9003 | power_to_grid | Power To Grid | FAST_TELEMETRY | FAST | int32 | 1 | W | PRODUCTION |
@@ -138,6 +143,21 @@ Stage 28 policy: all fields listed here are production (status `PRODUCTION`, `UN
 | 9083 | active_fault_code | Active Fault Code | DIAGNOSTICS | NORMAL | int32 | 1 |  | PRODUCTION |
 | 9084 | active_warning_code | Active Warning Code | DIAGNOSTICS | NORMAL | int32 | 1 |  | PRODUCTION |
 | 9085 | load_power | Load Power | FAST_TELEMETRY | FAST | int32 | 1 | W | PRODUCTION |
+| 10001 | system_output_voltage | System Output Voltage | FAST_TELEMETRY | FAST | int32 | 10 | V | PRODUCTION |
+| 10002 | system_output_current | System Output Current | FAST_TELEMETRY | FAST | int32 | 100 | A | PRODUCTION |
+| 10003 | system_output_power | System Output Power | FAST_TELEMETRY | FAST | int32 | 1 | W | PRODUCTION |
+| 10004 | system_output_energy | System Output Energy | ENERGY_TOTALS | SLOW | int32 | 100 | kWh | PRODUCTION |
+| 10005 | system_output_frequency | System Output Frequency | FAST_TELEMETRY | FAST | int32 | 10 | Hz | PRODUCTION |
+| 10006 | system_output_power_factor | System Output Power Factor | FAST_TELEMETRY | FAST | int32 | 100 |  | PRODUCTION |
+| 10007 | grid_input_voltage | Grid Input Voltage | FAST_TELEMETRY | FAST | int32 | 10 | V | PRODUCTION |
+| 10008 | grid_input_current | Grid Input Current | FAST_TELEMETRY | FAST | int32 | 100 | A | PRODUCTION |
+| 10009 | grid_input_power | Grid Input Power | FAST_TELEMETRY | FAST | int32 | 1 | W | PRODUCTION |
+| 10010 | grid_input_energy | Grid Input Energy | ENERGY_TOTALS | SLOW | int32 | 100 | kWh | PRODUCTION |
+| 10011 | grid_input_frequency | Grid Input Frequency | FAST_TELEMETRY | FAST | int32 | 10 | Hz | PRODUCTION |
+| 10012 | grid_input_power_factor | Grid Input Power Factor | FAST_TELEMETRY | FAST | int32 | 100 |  | PRODUCTION |
+| 10013 | grid_raw_voltage | Grid Raw Voltage | FAST_TELEMETRY | FAST | int32 | 10 | V | PRODUCTION |
+| 10014 | display_enabled | Display Enabled | FAST_TELEMETRY | FAST | bool | 1 |  | PRODUCTION |
+| 11001 | garage_presence | Garage Presence | STATUS | FAST | bool | 1 |  | PRODUCTION |
 
 ## V1 Compatibility
 

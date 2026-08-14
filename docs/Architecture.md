@@ -63,6 +63,8 @@ UART remains useful for debug, fallback, and validation.
 - `0`: aggregate/site values
 - `1`: inverter 1
 - `2`: inverter 2
+- `3`: Controller-originated whole-system measurements
+- `4`: Garage Sensor local presence source
 
 Future IDs must not change existing field IDs. Display state should be keyed by
 `device_id` and field ID so one sender never blocks another.

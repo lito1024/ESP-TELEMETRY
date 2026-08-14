@@ -7,7 +7,9 @@ Stage 24.2 adds a fixed-capacity peer trust layer for ESP-NOW transports.
 - `0`: aggregate/system, reserved.
 - `1`: inverter 1.
 - `2`: inverter 2.
-- `3+`: future telemetry sources.
+- `3`: Controller-originated whole-system measurements.
+- `4`: Garage Sensor presence source.
+- `5+`: future telemetry sources.
 
 The current LuxPower Gateway hardware test uses `device_id = 1`.
 

@@ -1,7 +1,9 @@
 #!/usr/bin/env python3
 from __future__ import annotations
 
+import re
 import struct
+from pathlib import Path
 
 MAGIC = b"SPDP"
 VERSION = 1
@@ -28,6 +30,41 @@ FIELD_GENERATOR_ENERGY_TODAY = 9084  # rotation index 78 -> batch 3 (last)
 # NORMAL->STATUS(18), SLOW->DIAGNOSTICS(19).
 TYPE_STATUS = 18
 FIELD_LOAD_POWER = 9085
+# Stage 36: Controller -> Gateway commands and Gateway -> Controller command
+# results. See ESP-TELEMETRY/src/ESPTelemetry.h.
+TYPE_COMMAND = 32
+TYPE_COMMAND_RESULT = 33
+COMMAND_PAYLOAD_SIZE = 8
+COMMAND_RESULT_PAYLOAD_SIZE = 17
+CMD_SET_MAX_BACKFLOW_POWER = 1
+CMD_SET_ZERO_EXPORT = 2
+RESULT_SUCCESS = 0
+RESULT_SUCCESS_ALREADY_SET = 1
+RESULT_TIMEOUT = 2
+RESULT_COMMUNICATION_ERROR = 3
+RESULT_VALIDATION_ERROR = 4
+RESULT_READBACK_FAILED = 5
+RESULT_UNKNOWN_DEVICE = 6
+RESULT_UNSUPPORTED_COMMAND = 7
+DEVICE_CONTROLLER_SYSTEM = 3
+FIELDS_HEADER = Path(__file__).resolve().parent.parent / "src" / "ESPTelemetryFields.h"
+
+SYSTEM_MEASUREMENT_FIELDS = [
+    ("system_output_voltage", "System Output Voltage", 10001, "V", 10),
+    ("system_output_current", "System Output Current", 10002, "A", 100),
+    ("system_output_power", "System Output Power", 10003, "W", 1),
+    ("system_output_energy", "System Output Energy", 10004, "kWh", 100),
+    ("system_output_frequency", "System Output Frequency", 10005, "Hz", 10),
+    ("system_output_power_factor", "System Output Power Factor", 10006, "", 100),
+    ("grid_input_voltage", "Grid Input Voltage", 10007, "V", 10),
+    ("grid_input_current", "Grid Input Current", 10008, "A", 100),
+    ("grid_input_power", "Grid Input Power", 10009, "W", 1),
+    ("grid_input_energy", "Grid Input Energy", 10010, "kWh", 100),
+    ("grid_input_frequency", "Grid Input Frequency", 10011, "Hz", 10),
+    ("grid_input_power_factor", "Grid Input Power Factor", 10012, "", 100),
+    ("grid_raw_voltage", "Grid Raw Voltage", 10013, "V", 10),
+    ("display_enabled", "Display Enabled", 10014, "", 1),
+]
 
 
 def crc16(data: bytes) -> int:
@@ -70,6 +107,56 @@ def encode_v2(seq: int, timestamp: int, fields: list[tuple[int, int]], msg_type:
     header = MAGIC + bytes([VERSION_V2, msg_type]) + struct.pack("<HHI", len(payload), seq, timestamp)
     frame_without_crc = header + payload
     return frame_without_crc + struct.pack("<H", crc16(frame_without_crc))
+
+
+def encode_command(seq: int, timestamp: int, device_id: int, command_id: int, command_sequence: int, value: int) -> bytes:
+    payload = struct.pack("<BBHi", device_id, command_id, command_sequence, value)
+    header = MAGIC + bytes([VERSION_V2, TYPE_COMMAND]) + struct.pack("<HHI", len(payload), seq, timestamp)
+    frame_without_crc = header + payload
+    return frame_without_crc + struct.pack("<H", crc16(frame_without_crc))
+
+
+def encode_command_result(
+    seq: int,
+    timestamp: int,
+    device_id: int,
+    command_id: int,
+    command_sequence: int,
+    result_code: int,
+    requested_value: int,
+    previous_value: int,
+    readback_value: int,
+) -> bytes:
+    payload = struct.pack(
+        "<BBHBiii", device_id, command_id, command_sequence, result_code, requested_value, previous_value, readback_value
+    )
+    header = MAGIC + bytes([VERSION_V2, TYPE_COMMAND_RESULT]) + struct.pack("<HHI", len(payload), seq, timestamp)
+    frame_without_crc = header + payload
+    return frame_without_crc + struct.pack("<H", crc16(frame_without_crc))
+
+
+def decode_command_fields(frame: bytes) -> dict[str, int]:
+    payload_length = struct.unpack_from("<H", frame, 6)[0]
+    payload = frame[HEADER_SIZE : HEADER_SIZE + payload_length]
+    device_id, command_id, command_sequence, value = struct.unpack_from("<BBHi", payload, 0)
+    return {"device_id": device_id, "command_id": command_id, "command_sequence": command_sequence, "value": value}
+
+
+def decode_command_result_fields(frame: bytes) -> dict[str, int]:
+    payload_length = struct.unpack_from("<H", frame, 6)[0]
+    payload = frame[HEADER_SIZE : HEADER_SIZE + payload_length]
+    device_id, command_id, command_sequence, result_code, requested, previous, readback = struct.unpack_from(
+        "<BBHBiii", payload, 0
+    )
+    return {
+        "device_id": device_id,
+        "command_id": command_id,
+        "command_sequence": command_sequence,
+        "result_code": result_code,
+        "requested_value": requested,
+        "previous_value": previous,
+        "readback_value": readback,
+    }
 
 
 class Decoder:
@@ -124,7 +211,11 @@ class Decoder:
             # (version, messageType), so two interleaved sources don't get
             # compared against each other's sequence counters.
             device_id = 0
-            if version == VERSION_V2 and message_type in (TYPE_FAST, TYPE_STATUS, TYPE_DIAGNOSTICS, 17) and payload:
+            if (
+                version == VERSION_V2
+                and message_type in (TYPE_FAST, TYPE_STATUS, TYPE_DIAGNOSTICS, 17, TYPE_COMMAND, TYPE_COMMAND_RESULT)
+                and payload
+            ):
                 device_id = payload[0]
             elif version == VERSION and message_type == TYPE_SNAPSHOT and len(payload) >= SNAPSHOT_PAYLOAD_SIZE:
                 device_id = payload[24]
@@ -339,6 +430,117 @@ def test_real_gap_still_detected_per_device_when_interleaved() -> None:
     assert results == ["FrameReady", "FrameReady", "SequenceGap", "FrameReady"], results
 
 
+def test_command_encode_decode_roundtrip() -> None:
+    frame = encode_command(1, 100, device_id=2, command_id=CMD_SET_MAX_BACKFLOW_POWER, command_sequence=7, value=70)
+    assert feed_all(Decoder(), frame) == ["FrameReady"]
+    fields = decode_command_fields(frame)
+    assert fields == {"device_id": 2, "command_id": CMD_SET_MAX_BACKFLOW_POWER, "command_sequence": 7, "value": 70}
+
+
+def test_command_result_encode_decode_roundtrip() -> None:
+    frame = encode_command_result(
+        1,
+        100,
+        device_id=2,
+        command_id=CMD_SET_ZERO_EXPORT,
+        command_sequence=7,
+        result_code=RESULT_SUCCESS,
+        requested_value=1,
+        previous_value=0,
+        readback_value=1,
+    )
+    assert feed_all(Decoder(), frame) == ["FrameReady"]
+    fields = decode_command_result_fields(frame)
+    assert fields == {
+        "device_id": 2,
+        "command_id": CMD_SET_ZERO_EXPORT,
+        "command_sequence": 7,
+        "result_code": RESULT_SUCCESS,
+        "requested_value": 1,
+        "previous_value": 0,
+        "readback_value": 1,
+    }
+
+
+def test_command_negative_value_roundtrips_signed() -> None:
+    # value is a signed int32 on the wire (matches TelemetryFieldValue's
+    # existing convention) -- not currently used by either allowlisted
+    # command (both are non-negative), but the codec itself must not
+    # truncate or misinterpret a negative value if ever needed.
+    frame = encode_command(1, 100, device_id=1, command_id=CMD_SET_MAX_BACKFLOW_POWER, command_sequence=1, value=-5)
+    fields = decode_command_fields(frame)
+    assert fields["value"] == -5
+
+
+def test_command_device_ids_sequenced_independently() -> None:
+    # Same requirement as telemetry (Stage 32): commands to device 1 and
+    # device 2 must not be compared against each other's sequence counters.
+    decoder = Decoder()
+    d1 = encode_command(1, 1000, device_id=1, command_id=CMD_SET_MAX_BACKFLOW_POWER, command_sequence=1, value=50)
+    d2 = encode_command(1, 1000, device_id=2, command_id=CMD_SET_MAX_BACKFLOW_POWER, command_sequence=1, value=50)
+    d1_next = encode_command(2, 1001, device_id=1, command_id=CMD_SET_MAX_BACKFLOW_POWER, command_sequence=2, value=60)
+    results = []
+    for frame in (d1, d2, d1_next):
+        results += feed_all(decoder, frame)
+    assert results == ["FrameReady", "FrameReady", "FrameReady"], results
+
+
+def test_command_and_telemetry_do_not_share_sequence_stream() -> None:
+    # TYPE_COMMAND and TYPE_FAST are different message_type values, so
+    # sharing one Decoder instance (as Bridge does, decoding both directions)
+    # must not conflate a Gateway's telemetry sequence with a Controller's
+    # command sequence for the same device_id.
+    decoder = Decoder()
+    telemetry = encode_v2(1, 1000, [(FIELD_PV1_POWER, 100)], msg_type=TYPE_FAST, device_id=2)
+    command = encode_command(1, 1000, device_id=2, command_id=CMD_SET_ZERO_EXPORT, command_sequence=1, value=1)
+    results = []
+    for frame in (telemetry, command):
+        results += feed_all(decoder, frame)
+    assert results == ["FrameReady", "FrameReady"], results
+
+
+def test_controller_system_device_id_sequences_independent_from_inverters() -> None:
+    decoder = Decoder()
+    inv1 = encode_v2(1, 1000, [(FIELD_PV1_POWER, 100)], msg_type=TYPE_FAST, device_id=1)
+    inv2 = encode_v2(1, 1000, [(FIELD_PV1_POWER, 200)], msg_type=TYPE_FAST, device_id=2)
+    system = encode_v2(1, 1000, [(10003, 1234)], msg_type=TYPE_FAST, device_id=DEVICE_CONTROLLER_SYSTEM)
+    results = []
+    for frame in (inv1, inv2, system):
+        results += feed_all(decoder, frame)
+    assert results == ["FrameReady", "FrameReady", "FrameReady"], results
+
+
+def test_stage39a_system_measurement_field_descriptors_are_final_not_simulated() -> None:
+    source = FIELDS_HEADER.read_text(encoding="utf-8")
+    enum_ids = {
+        name: int(value)
+        for name, value in re.findall(r"(FieldId\w+)\s*=\s*(\d+)", source)
+    }
+    descriptor_pattern = re.compile(
+        r"\{FieldId(?P<enum>\w+),\s+\"(?P<key>[^\"]+)\",\s+\"(?P<name>[^\"]+)\",\s+\"(?P<unit>[^\"]*)\",\s+(?P<scale>\d+),"
+    )
+    descriptors = {}
+    for match in descriptor_pattern.finditer(source):
+        enum_name = "FieldId" + match.group("enum")
+        descriptors[match.group("key")] = (
+            enum_ids[enum_name],
+            match.group("name"),
+            match.group("unit"),
+            int(match.group("scale")),
+        )
+
+    ids = [field_id for _key, _name, field_id, _unit, _scale in SYSTEM_MEASUREMENT_FIELDS]
+    assert len(ids) == len(set(ids))
+    assert not set(ids).intersection({0, 1, 2, 1001, 1002, 2001, 2002, 2003, 5001, 7001, 7002, 7003})
+    for key, name, field_id, unit, scale in SYSTEM_MEASUREMENT_FIELDS:
+        assert descriptors[key] == (field_id, name, unit, scale)
+        combined = f"{key} {name}".lower()
+        assert "sim" not in combined
+        assert "test" not in combined
+        assert "pzem" not in combined
+        assert "lm358" not in combined
+
+
 def main() -> int:
     tests = [
         test_crc,
@@ -358,6 +560,13 @@ def main() -> int:
         test_startup_burst_first_middle_last_batch_all_classes_decode,
         test_interleaved_two_device_sequences_do_not_conflate,
         test_real_gap_still_detected_per_device_when_interleaved,
+        test_command_encode_decode_roundtrip,
+        test_command_result_encode_decode_roundtrip,
+        test_command_negative_value_roundtrips_signed,
+        test_command_device_ids_sequenced_independently,
+        test_command_and_telemetry_do_not_share_sequence_stream,
+        test_controller_system_device_id_sequences_independent_from_inverters,
+        test_stage39a_system_measurement_field_descriptors_are_final_not_simulated,
     ]
     for test in tests:
         test()

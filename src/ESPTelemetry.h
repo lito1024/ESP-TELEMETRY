@@ -17,8 +17,17 @@ static constexpr uint8_t kMessageTypeFastTelemetry = 16;
 static constexpr uint8_t kMessageTypeEnergyTotals = 17;
 static constexpr uint8_t kMessageTypeStatus = 18;
 static constexpr uint8_t kMessageTypeDiagnostics = 19;
+// Stage 36: Controller -> Gateway typed commands and Gateway -> Controller
+// command results. v2 messages, same framing as telemetry. deviceId at
+// payload[0] in both, matching the existing v2 telemetry convention, so
+// Bridge can route/sequence-track by peeking that one byte without decoding
+// command semantics (see stages/Stage36.md).
+static constexpr uint8_t kMessageTypeCommand = 32;
+static constexpr uint8_t kMessageTypeCommandResult = 33;
 static constexpr size_t kHeaderSize = 14;
 static constexpr size_t kSnapshotPayloadSize = 32;
+static constexpr size_t kCommandPayloadSize = 8;
+static constexpr size_t kCommandResultPayloadSize = 17;
 static constexpr size_t kCrcSize = 2;
 static constexpr size_t kMaxPayloadSize = 128;
 static constexpr size_t kMaxFrameSize = kHeaderSize + kMaxPayloadSize + kCrcSize;
@@ -41,6 +50,58 @@ enum class DecodeResult : uint8_t
     BadCrc,
     UnsupportedVersion,
     PayloadTooLarge
+};
+
+// Stage 36: the complete, permanent command allowlist. No generic
+// writeRegister(address, value) exists anywhere in this protocol or in any
+// component that uses it -- adding a new writable capability means adding a
+// new named CommandId here, not parameterizing an existing one. See
+// stages/Stage36.md "Gateway Command Allowlist".
+enum class CommandId : uint8_t
+{
+    SetMaxBackflowPower = 1,
+    SetZeroExport = 2
+};
+
+// Terminal result codes for a completed command. Every command reaches
+// exactly one of these -- there is no "in progress" value on the wire;
+// in-flight state is tracked locally by the sender (Controller), not
+// encoded in a CommandResultPayload.
+enum class CommandResultCode : uint8_t
+{
+    Success = 0,
+    SuccessAlreadySet = 1,
+    Timeout = 2,
+    CommunicationError = 3,
+    ValidationError = 4,
+    ReadbackFailed = 5,
+    UnknownDevice = 6,
+    UnsupportedCommand = 7,
+    // Stage 36: returned locally by Controller (never sent over the wire)
+    // when a new command targets a device_id that already has a command
+    // in flight -- see EspTelemetryEspNowComponent's per-device pending
+    // tracking. Included here so Gateway and Controller share one
+    // authoritative result-code enum instead of each defining their own.
+    Busy = 8
+};
+
+struct CommandPayload
+{
+    uint8_t deviceId;
+    uint8_t commandId;      // CommandId
+    uint16_t commandSequence;
+    int32_t value;          // percent (0-100) for SetMaxBackflowPower, 0/1 for SetZeroExport
+};
+
+struct CommandResultPayload
+{
+    uint8_t deviceId;
+    uint8_t commandId;      // CommandId this result answers
+    uint16_t commandSequence; // echoes the CommandPayload that triggered this result
+    uint8_t resultCode;     // CommandResultCode
+    int32_t requestedValue;
+    int32_t previousValue;
+    int32_t readbackValue;
 };
 
 enum SnapshotFlags : uint16_t
@@ -107,6 +168,10 @@ size_t encodeTelemetry(const TelemetryPayload &payload,
                        size_t capacity);
 bool decodeTelemetryPayload(const Frame &frame, TelemetryPayload &payload);
 bool messageTypeIsV2Telemetry(uint8_t messageType);
+size_t encodeCommand(const CommandPayload &payload, uint16_t sequence, uint32_t timestampMs, uint8_t *out, size_t capacity);
+bool decodeCommandPayload(const Frame &frame, CommandPayload &payload);
+size_t encodeCommandResult(const CommandResultPayload &payload, uint16_t sequence, uint32_t timestampMs, uint8_t *out, size_t capacity);
+bool decodeCommandResultPayload(const Frame &frame, CommandResultPayload &payload);
 
 class Decoder
 {
