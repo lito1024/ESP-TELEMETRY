@@ -118,6 +118,7 @@ enum FieldId : uint16_t
     FieldIdGridRawVoltage = 10013,
     FieldIdDisplayEnabled = 10014,
     FieldIdGaragePresence = 11001,
+    FieldIdDisplayMaintenanceWifiActual = 12001,
 };
 
 enum class TelemetryGroup : uint8_t
@@ -258,6 +259,7 @@ static constexpr FieldDescriptor kFieldDescriptors[] = {
     {FieldIdGridRawVoltage, "grid_raw_voltage", "Grid Raw Voltage", "V", 10, TelemetryGroup::FastTelemetry, UpdateClass::Fast},
     {FieldIdDisplayEnabled, "display_enabled", "Display Enabled", "", 1, TelemetryGroup::FastTelemetry, UpdateClass::Fast},
     {FieldIdGaragePresence, "garage_presence", "Garage Presence", "", 1, TelemetryGroup::Status, UpdateClass::Fast},
+    {FieldIdDisplayMaintenanceWifiActual, "display_maintenance_wifi_actual", "Display Maintenance Wi-Fi Actual", "", 1, TelemetryGroup::Status, UpdateClass::Fast},
 };
 
 static constexpr uint8_t kGeneratedFieldCount = sizeof(kFieldDescriptors) / sizeof(kFieldDescriptors[0]);

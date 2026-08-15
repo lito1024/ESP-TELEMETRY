@@ -89,6 +89,29 @@ int main()
     expect(decodedTelemetry.fields[1].fieldId == FieldIdBatterySoc);
     expect(decodedTelemetry.fields[1].value == 1000);
 
+    TelemetryPayload displayStatus{};
+    displayStatus.group = TelemetryGroup::Status;
+    displayStatus.flags = TelemetryGroupFlagValuesValid | TelemetryGroupFlagCacheValid;
+    displayStatus.fieldCount = 1;
+    displayStatus.deviceId = kDeviceIdDisplay;
+    displayStatus.fields[0] = {FieldIdDisplayMaintenanceWifiActual, 0};
+    const size_t displayStatusLength = encodeTelemetry(displayStatus,
+                                                       kMessageTypeStatus,
+                                                       3,
+                                                       300,
+                                                       telemetryFrame,
+                                                       sizeof(telemetryFrame));
+    expect(displayStatusLength == kHeaderSize + kTelemetryPayloadHeaderSize + kTelemetryFieldRecordSize + kCrcSize);
+    Frame decodedDisplayStatusFrame{};
+    expect(feedFrame(telemetryFrame, displayStatusLength, decodedDisplayStatusFrame) == DecodeResult::FrameReady);
+    TelemetryPayload decodedDisplayStatus{};
+    expect(decodeTelemetryPayload(decodedDisplayStatusFrame, decodedDisplayStatus));
+    expect(decodedDisplayStatus.deviceId == kDeviceIdDisplay);
+    expect(decodedDisplayStatus.group == TelemetryGroup::Status);
+    expect(decodedDisplayStatus.fieldCount == 1);
+    expect(decodedDisplayStatus.fields[0].fieldId == FieldIdDisplayMaintenanceWifiActual);
+    expect(decodedDisplayStatus.fields[0].value == 0);
+
     TelemetryPayload badTelemetry = telemetry;
     badTelemetry.fieldCount = kMaxTelemetryFields + 1;
     expect(encodeTelemetry(badTelemetry, kMessageTypeFastTelemetry, 3, 300, telemetryFrame, sizeof(telemetryFrame)) == 0);

@@ -47,6 +47,8 @@ RESULT_READBACK_FAILED = 5
 RESULT_UNKNOWN_DEVICE = 6
 RESULT_UNSUPPORTED_COMMAND = 7
 DEVICE_CONTROLLER_SYSTEM = 3
+DEVICE_DISPLAY = 5
+FIELD_DISPLAY_MAINTENANCE_WIFI_ACTUAL = 12001
 FIELDS_HEADER = Path(__file__).resolve().parent.parent / "src" / "ESPTelemetryFields.h"
 
 SYSTEM_MEASUREMENT_FIELDS = [
@@ -510,6 +512,22 @@ def test_controller_system_device_id_sequences_independent_from_inverters() -> N
     assert results == ["FrameReady", "FrameReady", "FrameReady"], results
 
 
+def test_stage40a_display_status_field_and_device_id() -> None:
+    decoder = Decoder()
+    frame = encode_v2(
+        1,
+        1000,
+        [(FIELD_DISPLAY_MAINTENANCE_WIFI_ACTUAL, 0)],
+        msg_type=TYPE_STATUS,
+        device_id=DEVICE_DISPLAY,
+    )
+    assert feed_all(decoder, frame) == ["FrameReady"]
+
+    source = FIELDS_HEADER.read_text(encoding="utf-8")
+    assert "FieldIdDisplayMaintenanceWifiActual = 12001" in source
+    assert '{FieldIdDisplayMaintenanceWifiActual, "display_maintenance_wifi_actual", "Display Maintenance Wi-Fi Actual", "", 1, TelemetryGroup::Status' in source
+
+
 def test_stage39a_system_measurement_field_descriptors_are_final_not_simulated() -> None:
     source = FIELDS_HEADER.read_text(encoding="utf-8")
     enum_ids = {
@@ -566,6 +584,7 @@ def main() -> int:
         test_command_device_ids_sequenced_independently,
         test_command_and_telemetry_do_not_share_sequence_stream,
         test_controller_system_device_id_sequences_independent_from_inverters,
+        test_stage40a_display_status_field_and_device_id,
         test_stage39a_system_measurement_field_descriptors_are_final_not_simulated,
     ]
     for test in tests:

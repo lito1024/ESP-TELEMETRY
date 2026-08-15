@@ -35,7 +35,7 @@ No floats are sent on the wire. Values are signed 32-bit scaled integers.
 
 | Offset | Size | Field | Description |
 | --- | --- | --- | --- |
-| 0 | 1 | device_id | Source identity: `1` inverter 1, `2` inverter 2, `3` Controller/system, `4` Garage Sensor |
+| 0 | 1 | device_id | Source identity: `1` inverter 1, `2` inverter 2, `3` Controller/system, `4` Garage Sensor, `5` Display |
 | 1 | 1 | group_id | 1 fast, 2 energy, 3 status, 4 diagnostics |
 | 2 | 1 | field_count | number of following field records |
 | 3 | 2 | group_flags | bit 0 = group values valid, bit 1 = cache valid |
@@ -158,6 +158,7 @@ Stage 28 policy: all fields listed here are production (status `PRODUCTION`, `UN
 | 10013 | grid_raw_voltage | Grid Raw Voltage | FAST_TELEMETRY | FAST | int32 | 10 | V | PRODUCTION |
 | 10014 | display_enabled | Display Enabled | FAST_TELEMETRY | FAST | bool | 1 |  | PRODUCTION |
 | 11001 | garage_presence | Garage Presence | STATUS | FAST | bool | 1 |  | PRODUCTION |
+| 12001 | display_maintenance_wifi_actual | Display Maintenance Wi-Fi Actual | STATUS | FAST | bool | 1 |  | PRODUCTION |
 
 ## V1 Compatibility
 
