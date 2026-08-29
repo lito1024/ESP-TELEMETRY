@@ -32,8 +32,14 @@ Current adapters:
   complete ESP-TELEMETRY frames, tracks send callbacks, callback failures,
   callback latency, receive drops, packet ages, peer readiness, and RSSI when the
   ESP-IDF receive metadata exposes it.
+- `UDPTransport` (Stage 42A): local-IP wireless adapter, implemented on raw
+  ESP-IDF/lwIP BSD sockets (not Arduino `WiFiUDP`), one ESP-TELEMETRY frame per
+  UDP datagram, no stream framing/reassembly. Exposes sender source IP via
+  `receivePacket()` the same way `ESPNowTransport` exposes sender MAC; performs
+  no trust decision itself -- callers validate source IP against an expected
+  peer explicitly. See `stages/Stage42A.md` in `SweetPower-Project-Docs`.
 
-Future adapters can add UDP, Ethernet, RS485, BLE, or test/simulator transports
+Future adapters can add Ethernet, RS485, BLE, or test/simulator transports
 without changing packet encoding.
 
 ## Production Direction
