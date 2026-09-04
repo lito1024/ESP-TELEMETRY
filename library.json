@@ -2,7 +2,7 @@
   "name": "ESP-TELEMETRY",
   "version": "1.0.0",
   "description": "Transport-independent Sweet Power telemetry protocol",
-  "keywords": "esp32,telemetry,protocol,uart,esp-now,luxpower",
+  "keywords": "esp32,telemetry,protocol,uart,udp,luxpower",
   "authors": [
     {
       "name": "Alexander Melnik"
