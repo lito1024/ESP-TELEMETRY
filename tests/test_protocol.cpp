@@ -112,6 +112,56 @@ int main()
     expect(decodedDisplayStatus.fields[0].fieldId == FieldIdDisplayMaintenanceWifiActual);
     expect(decodedDisplayStatus.fields[0].value == 0);
 
+    TelemetryPayload displayMaintenanceRequest{};
+    displayMaintenanceRequest.group = TelemetryGroup::FastTelemetry;
+    displayMaintenanceRequest.flags = TelemetryGroupFlagValuesValid | TelemetryGroupFlagCacheValid;
+    displayMaintenanceRequest.fieldCount = 1;
+    displayMaintenanceRequest.deviceId = kDeviceIdControllerSystem;
+    displayMaintenanceRequest.fields[0] = {FieldIdDisplayMaintenanceWifiEnabled, 1};
+    const size_t displayMaintenanceRequestLength = encodeTelemetry(displayMaintenanceRequest,
+                                                                   kMessageTypeFastTelemetry,
+                                                                   4,
+                                                                   400,
+                                                                   telemetryFrame,
+                                                                   sizeof(telemetryFrame));
+    expect(displayMaintenanceRequestLength ==
+           kHeaderSize + kTelemetryPayloadHeaderSize + kTelemetryFieldRecordSize + kCrcSize);
+    Frame decodedDisplayMaintenanceRequestFrame{};
+    expect(feedFrame(telemetryFrame, displayMaintenanceRequestLength, decodedDisplayMaintenanceRequestFrame) ==
+           DecodeResult::FrameReady);
+    TelemetryPayload decodedDisplayMaintenanceRequest{};
+    expect(decodeTelemetryPayload(decodedDisplayMaintenanceRequestFrame, decodedDisplayMaintenanceRequest));
+    expect(decodedDisplayMaintenanceRequest.deviceId == kDeviceIdControllerSystem);
+    expect(decodedDisplayMaintenanceRequest.group == TelemetryGroup::FastTelemetry);
+    expect(decodedDisplayMaintenanceRequest.fieldCount == 1);
+    expect(decodedDisplayMaintenanceRequest.fields[0].fieldId == FieldIdDisplayMaintenanceWifiEnabled);
+    expect(decodedDisplayMaintenanceRequest.fields[0].value == 1);
+
+    TelemetryPayload haConnected{};
+    haConnected.group = TelemetryGroup::FastTelemetry;
+    haConnected.flags = TelemetryGroupFlagValuesValid | TelemetryGroupFlagCacheValid;
+    haConnected.fieldCount = 1;
+    haConnected.deviceId = kDeviceIdControllerSystem;
+    haConnected.fields[0] = {FieldIdHomeAssistantConnected, 1};
+    const size_t haConnectedLength = encodeTelemetry(haConnected,
+                                                      kMessageTypeFastTelemetry,
+                                                      5,
+                                                      500,
+                                                      telemetryFrame,
+                                                      sizeof(telemetryFrame));
+    expect(haConnectedLength ==
+           kHeaderSize + kTelemetryPayloadHeaderSize + kTelemetryFieldRecordSize + kCrcSize);
+    Frame decodedHaConnectedFrame{};
+    expect(feedFrame(telemetryFrame, haConnectedLength, decodedHaConnectedFrame) ==
+           DecodeResult::FrameReady);
+    TelemetryPayload decodedHaConnected{};
+    expect(decodeTelemetryPayload(decodedHaConnectedFrame, decodedHaConnected));
+    expect(decodedHaConnected.deviceId == kDeviceIdControllerSystem);
+    expect(decodedHaConnected.group == TelemetryGroup::FastTelemetry);
+    expect(decodedHaConnected.fieldCount == 1);
+    expect(decodedHaConnected.fields[0].fieldId == FieldIdHomeAssistantConnected);
+    expect(decodedHaConnected.fields[0].value == 1);
+
     TelemetryPayload badTelemetry = telemetry;
     badTelemetry.fieldCount = kMaxTelemetryFields + 1;
     expect(encodeTelemetry(badTelemetry, kMessageTypeFastTelemetry, 3, 300, telemetryFrame, sizeof(telemetryFrame)) == 0);

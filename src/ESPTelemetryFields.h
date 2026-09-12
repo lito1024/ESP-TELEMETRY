@@ -117,6 +117,8 @@ enum FieldId : uint16_t
     FieldIdGridInputPowerFactor = 10012,
     FieldIdGridRawVoltage = 10013,
     FieldIdDisplayEnabled = 10014,
+    FieldIdDisplayMaintenanceWifiEnabled = 10015,
+    FieldIdHomeAssistantConnected = 10016,
     FieldIdGaragePresence = 11001,
     FieldIdDisplayMaintenanceWifiActual = 12001,
 };
@@ -258,6 +260,8 @@ static constexpr FieldDescriptor kFieldDescriptors[] = {
     {FieldIdGridInputPowerFactor, "grid_input_power_factor", "Grid Input Power Factor", "", 100, TelemetryGroup::FastTelemetry, UpdateClass::Fast},
     {FieldIdGridRawVoltage, "grid_raw_voltage", "Grid Raw Voltage", "V", 10, TelemetryGroup::FastTelemetry, UpdateClass::Fast},
     {FieldIdDisplayEnabled, "display_enabled", "Display Enabled", "", 1, TelemetryGroup::FastTelemetry, UpdateClass::Fast},
+    {FieldIdDisplayMaintenanceWifiEnabled, "display_maintenance_wifi_enabled", "Display Maintenance Wi-Fi Enabled", "", 1, TelemetryGroup::FastTelemetry, UpdateClass::Fast},
+    {FieldIdHomeAssistantConnected, "home_assistant_connected", "Home Assistant Connected", "", 1, TelemetryGroup::FastTelemetry, UpdateClass::Fast},
     {FieldIdGaragePresence, "garage_presence", "Garage Presence", "", 1, TelemetryGroup::Status, UpdateClass::Fast},
     {FieldIdDisplayMaintenanceWifiActual, "display_maintenance_wifi_actual", "Display Maintenance Wi-Fi Actual", "", 1, TelemetryGroup::Status, UpdateClass::Fast},
 };
