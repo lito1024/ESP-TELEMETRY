@@ -121,6 +121,7 @@ enum FieldId : uint16_t
     FieldIdHomeAssistantConnected = 10016,
     FieldIdGaragePresence = 11001,
     FieldIdDisplayMaintenanceWifiActual = 12001,
+    FieldIdGridSourceVoltage = 14001,
 };
 
 enum class TelemetryGroup : uint8_t
@@ -264,6 +265,7 @@ static constexpr FieldDescriptor kFieldDescriptors[] = {
     {FieldIdHomeAssistantConnected, "home_assistant_connected", "Home Assistant Connected", "", 1, TelemetryGroup::FastTelemetry, UpdateClass::Fast},
     {FieldIdGaragePresence, "garage_presence", "Garage Presence", "", 1, TelemetryGroup::Status, UpdateClass::Fast},
     {FieldIdDisplayMaintenanceWifiActual, "display_maintenance_wifi_actual", "Display Maintenance Wi-Fi Actual", "", 1, TelemetryGroup::Status, UpdateClass::Fast},
+    {FieldIdGridSourceVoltage, "grid_source_voltage", "Grid Source Voltage", "V", 10, TelemetryGroup::FastTelemetry, UpdateClass::Fast},
 };
 
 static constexpr uint8_t kGeneratedFieldCount = sizeof(kFieldDescriptors) / sizeof(kFieldDescriptors[0]);

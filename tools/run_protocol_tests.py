@@ -50,6 +50,12 @@ DEVICE_CONTROLLER_SYSTEM = 3
 DEVICE_DISPLAY = 5
 FIELD_DISPLAY_MAINTENANCE_WIFI_ACTUAL = 12001
 FIELDS_HEADER = Path(__file__).resolve().parent.parent / "src" / "ESPTelemetryFields.h"
+PEER_HEADER = Path(__file__).resolve().parent.parent / "src" / "TelemetryPeerManager.h"
+PROTOCOL_HEADER = Path(__file__).resolve().parent.parent / "src" / "ESPTelemetry.h"
+# Stage 48H-A1: SweetPower Distribution Node.
+DEVICE_DISTRIBUTION_NODE = 7
+FIELD_GRID_SOURCE_VOLTAGE = 14001
+INVALID_I32 = -0x80000000  # 0x80000000 as a signed int32 on the wire
 
 SYSTEM_MEASUREMENT_FIELDS = [
     ("system_output_voltage", "System Output Voltage", 10001, "V", 10),
@@ -102,8 +108,15 @@ def encode(seq: int, timestamp: int, version: int = VERSION, payload: bytes | No
     return frame_without_crc + struct.pack("<H", crc16(frame_without_crc))
 
 
-def encode_v2(seq: int, timestamp: int, fields: list[tuple[int, int]], msg_type: int = TYPE_FAST, device_id: int = 1) -> bytes:
-    payload = struct.pack("<BBBH", device_id, 1, len(fields), 0x0003)
+def encode_v2(
+    seq: int,
+    timestamp: int,
+    fields: list[tuple[int, int]],
+    msg_type: int = TYPE_FAST,
+    device_id: int = 1,
+    flags: int = 0x0003,
+) -> bytes:
+    payload = struct.pack("<BBBH", device_id, 1, len(fields), flags)
     for field_id, value in fields:
         payload += struct.pack("<Hi", field_id, value)
     header = MAGIC + bytes([VERSION_V2, msg_type]) + struct.pack("<HHI", len(payload), seq, timestamp)
@@ -559,6 +572,72 @@ def test_stage39a_system_measurement_field_descriptors_are_final_not_simulated()
         assert "lm358" not in combined
 
 
+def test_stage48h_device_ids_canonical_and_unchanged() -> None:
+    source = PEER_HEADER.read_text(encoding="utf-8")
+    ids = {name: int(value) for name, value in re.findall(r"(kDeviceId\w+)\s*=\s*(\d+);", source)}
+    assert ids == {
+        "kDeviceIdAggregate": 0,
+        "kDeviceIdInverter1": 1,
+        "kDeviceIdInverter2": 2,
+        "kDeviceIdControllerSystem": 3,
+        "kDeviceIdGarageSensor": 4,
+        "kDeviceIdDisplay": 5,
+        "kDeviceIdDistributionNode": 7,
+    }, ids
+    # 6 stays reserved (planned PZEM3/Zegor node) -- not defined in code.
+    assert 6 not in ids.values()
+
+
+def test_stage48h_grid_source_voltage_descriptor() -> None:
+    source = FIELDS_HEADER.read_text(encoding="utf-8")
+    assert "FieldIdGridSourceVoltage = 14001" in source
+    assert (
+        '{FieldIdGridSourceVoltage, "grid_source_voltage", "Grid Source Voltage", "V", 10, '
+        "TelemetryGroup::FastTelemetry, UpdateClass::Fast}"
+    ) in source
+    ids = [int(v) for v in re.findall(r"FieldId\w+\s*=\s*(\d+),", source)]
+    assert len(ids) == 113 and len(ids) == len(set(ids)), len(ids)
+    assert [i for i in ids if i >= 13000] == [14001], "only 14001 in the 13xxx/14xxx ranges"
+    assert not [i for i in ids if 10017 <= i <= 10022], "PZEM2 proposal must not be implemented"
+
+
+def test_stage48h_distribution_node_v0_roundtrip() -> None:
+    decoder = Decoder()
+    frame = encode_v2(
+        0xFFFF,
+        123456,
+        [(FIELD_GRID_SOURCE_VOLTAGE, 2304)],
+        msg_type=TYPE_FAST,
+        device_id=DEVICE_DISTRIBUTION_NODE,
+    )
+    assert feed_all(decoder, frame) == ["FrameReady"]
+    payload = frame[HEADER_SIZE:]
+    assert payload[0] == DEVICE_DISTRIBUTION_NODE and payload[1] == 1 and payload[2] == 1
+    assert struct.unpack_from("<H", payload, 3)[0] == 0x0003
+    assert decode_v2_fields(frame) == {FIELD_GRID_SOURCE_VOLTAGE: 2304}
+    assert crc16(frame[:-2]) == struct.unpack_from("<H", frame, len(frame) - 2)[0]
+    # uint16 sequence wraps 0xFFFF -> 0 without a gap.
+    wrapped = encode_v2(0, 124456, [(FIELD_GRID_SOURCE_VOLTAGE, 1987)], device_id=DEVICE_DISTRIBUTION_NODE)
+    assert feed_all(decoder, wrapped) == ["FrameReady"]
+    assert decode_v2_fields(wrapped) == {FIELD_GRID_SOURCE_VOLTAGE: 1987}
+
+
+def test_stage48h_distribution_node_invalid_v0_uses_sentinel_and_clears_flags() -> None:
+    decoder = Decoder()
+    frame = encode_v2(
+        5,
+        1000,
+        [(FIELD_GRID_SOURCE_VOLTAGE, INVALID_I32)],
+        device_id=DEVICE_DISTRIBUTION_NODE,
+        flags=0x0000,
+    )
+    assert feed_all(decoder, frame) == ["FrameReady"]
+    assert decode_v2_fields(frame) == {FIELD_GRID_SOURCE_VOLTAGE: INVALID_I32}
+    assert struct.unpack_from("<H", frame, HEADER_SIZE + 3)[0] == 0x0000
+    proto = PROTOCOL_HEADER.read_text(encoding="utf-8")
+    assert re.search(r"kInvalidI32\s*=\s*(?:static_cast<int32_t>\()?0x80000000", proto), "sentinel constant"
+
+
 def main() -> int:
     tests = [
         test_crc,
@@ -586,6 +665,10 @@ def main() -> int:
         test_controller_system_device_id_sequences_independent_from_inverters,
         test_stage40a_display_status_field_and_device_id,
         test_stage39a_system_measurement_field_descriptors_are_final_not_simulated,
+        test_stage48h_device_ids_canonical_and_unchanged,
+        test_stage48h_grid_source_voltage_descriptor,
+        test_stage48h_distribution_node_v0_roundtrip,
+        test_stage48h_distribution_node_invalid_v0_uses_sentinel_and_clears_flags,
     ]
     for test in tests:
         test()

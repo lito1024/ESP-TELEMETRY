@@ -14,6 +14,11 @@ static constexpr uint8_t kDeviceIdInverter2 = 2;
 static constexpr uint8_t kDeviceIdControllerSystem = 3;
 static constexpr uint8_t kDeviceIdGarageSensor = 4;
 static constexpr uint8_t kDeviceIdDisplay = 5;
+// device_id 6 is reserved for the planned separate PZEM3 / Zegor ESP8266 node
+// (SweetPower HARDWARE.md, Stage 48E) -- not defined until it is implemented.
+// Stage 48H-A1: SweetPower Distribution Node (Waveshare ESP32-S3-Relay-6CH),
+// FieldId range 14001-14999.
+static constexpr uint8_t kDeviceIdDistributionNode = 7;
 static constexpr size_t kDefaultTelemetryPeerCapacity = 4;
 
 // One logical telemetry stream is identified by (protocol version, message type).

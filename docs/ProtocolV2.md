@@ -161,6 +161,7 @@ Stage 28 policy: all fields listed here are production (status `PRODUCTION`, `UN
 | 10016 | home_assistant_connected | Home Assistant Connected | FAST_TELEMETRY | FAST | bool | 1 |  | PRODUCTION |
 | 11001 | garage_presence | Garage Presence | STATUS | FAST | bool | 1 |  | PRODUCTION |
 | 12001 | display_maintenance_wifi_actual | Display Maintenance Wi-Fi Actual | STATUS | FAST | bool | 1 |  | PRODUCTION |
+| 14001 | grid_source_voltage | Grid Source Voltage | FAST_TELEMETRY | FAST | int32 | 10 | V | PRODUCTION |
 
 ## V1 Compatibility
 
