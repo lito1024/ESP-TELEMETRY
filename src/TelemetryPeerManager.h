@@ -14,8 +14,10 @@ static constexpr uint8_t kDeviceIdInverter2 = 2;
 static constexpr uint8_t kDeviceIdControllerSystem = 3;
 static constexpr uint8_t kDeviceIdGarageSensor = 4;
 static constexpr uint8_t kDeviceIdDisplay = 5;
-// device_id 6 is reserved for the planned separate PZEM3 / Zegor ESP8266 node
-// (SweetPower HARDWARE.md, Stage 48E) -- not defined until it is implemented.
+// Stage 48J-C: SweetPower Generator Node (classic ESP32, KS + Zegor PZEM-004T
+// meters), FieldId range 13001-13999. device_id 6 was previously only a
+// comment-reservation for the superseded PZEM3 / Zegor ESP8266 node plan.
+static constexpr uint8_t kDeviceIdGeneratorNode = 6;
 // Stage 48H-A1: SweetPower Distribution Node (Waveshare ESP32-S3-Relay-6CH),
 // FieldId range 14001-14999.
 static constexpr uint8_t kDeviceIdDistributionNode = 7;

@@ -54,6 +54,23 @@ PEER_HEADER = Path(__file__).resolve().parent.parent / "src" / "TelemetryPeerMan
 PROTOCOL_HEADER = Path(__file__).resolve().parent.parent / "src" / "ESPTelemetry.h"
 # Stage 48H-A1: SweetPower Distribution Node.
 DEVICE_DISTRIBUTION_NODE = 7
+DEVICE_GENERATOR_NODE = 6
+TYPE_ENERGY = 17
+# Stage 48J-C: Generator Node FieldIds -> (key, unit, scale, group).
+GENERATOR_FIELDS = {
+    13001: ("ks_generator_voltage", "V", 10, "FastTelemetry"),
+    13002: ("ks_generator_current", "A", 100, "FastTelemetry"),
+    13003: ("ks_generator_power", "W", 1, "FastTelemetry"),
+    13004: ("ks_generator_energy", "kWh", 100, "EnergyTotals"),
+    13005: ("ks_generator_frequency", "Hz", 10, "FastTelemetry"),
+    13006: ("ks_generator_power_factor", "", 100, "FastTelemetry"),
+    13007: ("zegor_generator_voltage", "V", 10, "FastTelemetry"),
+    13008: ("zegor_generator_current", "A", 100, "FastTelemetry"),
+    13009: ("zegor_generator_power", "W", 1, "FastTelemetry"),
+    13010: ("zegor_generator_energy", "kWh", 100, "EnergyTotals"),
+    13011: ("zegor_generator_frequency", "Hz", 10, "FastTelemetry"),
+    13012: ("zegor_generator_power_factor", "", 100, "FastTelemetry"),
+}
 FIELD_GRID_SOURCE_VOLTAGE = 14001
 INVALID_I32 = -0x80000000  # 0x80000000 as a signed int32 on the wire
 
@@ -582,10 +599,10 @@ def test_stage48h_device_ids_canonical_and_unchanged() -> None:
         "kDeviceIdControllerSystem": 3,
         "kDeviceIdGarageSensor": 4,
         "kDeviceIdDisplay": 5,
+        "kDeviceIdGeneratorNode": 6,
         "kDeviceIdDistributionNode": 7,
     }, ids
-    # 6 stays reserved (planned PZEM3/Zegor node) -- not defined in code.
-    assert 6 not in ids.values()
+    assert len(set(ids.values())) == len(ids), "device ids must be unique"
 
 
 def test_stage48h_grid_source_voltage_descriptor() -> None:
@@ -596,8 +613,8 @@ def test_stage48h_grid_source_voltage_descriptor() -> None:
         "TelemetryGroup::FastTelemetry, UpdateClass::Fast}"
     ) in source
     ids = [int(v) for v in re.findall(r"FieldId\w+\s*=\s*(\d+),", source)]
-    assert len(ids) == 113 and len(ids) == len(set(ids)), len(ids)
-    assert [i for i in ids if i >= 13000] == [14001], "only 14001 in the 13xxx/14xxx ranges"
+    assert len(ids) == 125 and len(ids) == len(set(ids)), len(ids)
+    assert [i for i in ids if i >= 13000] == list(range(13001, 13013)) + [14001], "13xxx/14xxx ranges"
     assert not [i for i in ids if 10017 <= i <= 10022], "PZEM2 proposal must not be implemented"
 
 
@@ -638,6 +655,42 @@ def test_stage48h_distribution_node_invalid_v0_uses_sentinel_and_clears_flags() 
     assert re.search(r"kInvalidI32\s*=\s*(?:static_cast<int32_t>\()?0x80000000", proto), "sentinel constant"
 
 
+def test_stage48j_generator_node_descriptors() -> None:
+    source = FIELDS_HEADER.read_text(encoding="utf-8")
+    rows = re.findall(r'\{FieldId(\w+), "(\w+)", "[^"]*", "([^"]*)", (\d+), TelemetryGroup::(\w+), UpdateClass::(\w+)\}', source)
+    enum = {name: int(v) for name, v in re.findall(r"FieldId(\w+)\s*=\s*(\d+),", source)}
+    got = {enum[name]: (key, unit, int(scale), group) for name, key, unit, scale, group, _ in rows if 13000 <= enum[name] < 14000}
+    assert got == GENERATOR_FIELDS, got
+    # Same representation as PZEM #1 (system_output_*, 10001-10006), in V/I/P/E/Hz/PF order.
+    pzem1 = {enum[name]: (unit, int(scale), group) for name, key, unit, scale, group, _ in rows if 10001 <= enum[name] <= 10006}
+    for base in (13001, 13007):
+        for k in range(6):
+            assert GENERATOR_FIELDS[base + k][1:] == pzem1[10001 + k], (base + k, pzem1[10001 + k])
+    # KS and Zegor are disjoint, in-order blocks.
+    assert all(GENERATOR_FIELDS[i][0].startswith("ks_") for i in range(13001, 13007))
+    assert all(GENERATOR_FIELDS[i][0].startswith("zegor_") for i in range(13007, 13013))
+
+
+def test_stage48j_generator_node_frames_roundtrip_with_per_meter_sentinels() -> None:
+    decoder = Decoder()
+    ks = [(13001, 2215), (13002, 15), (13003, 312), (13005, 500), (13006, 97)]
+    zegor_stale = [(f, INVALID_I32) for f in (13007, 13008, 13009, 13011, 13012)]
+    fast = encode_v2(0, 1000, ks + zegor_stale, msg_type=TYPE_FAST, device_id=DEVICE_GENERATOR_NODE)
+    energy = encode_v2(0, 1000, [(13004, 6), (13010, INVALID_I32)], msg_type=TYPE_ENERGY, device_id=DEVICE_GENERATOR_NODE)
+    # FAST and ENERGY_TOTALS are independent sequence streams of device 6.
+    assert feed_all(decoder, fast) == ["FrameReady"]
+    assert feed_all(decoder, energy) == ["FrameReady"]
+    fields = decode_v2_fields(fast)
+    assert fields[13001] == 2215 and fields[13007] == INVALID_I32
+    assert decode_v2_fields(energy) == {13004: 6, 13010: INVALID_I32}
+    payload = fast[HEADER_SIZE:]
+    assert payload[0] == DEVICE_GENERATOR_NODE and payload[2] == 10
+    # Group flags stay "valid" (node alive); a stale meter is per-field sentinels.
+    assert struct.unpack_from("<H", payload, 3)[0] == 0x0003
+    nxt = encode_v2(1, 2000, ks + zegor_stale, msg_type=TYPE_FAST, device_id=DEVICE_GENERATOR_NODE)
+    assert feed_all(decoder, nxt) == ["FrameReady"]
+
+
 def main() -> int:
     tests = [
         test_crc,
@@ -669,6 +722,8 @@ def main() -> int:
         test_stage48h_grid_source_voltage_descriptor,
         test_stage48h_distribution_node_v0_roundtrip,
         test_stage48h_distribution_node_invalid_v0_uses_sentinel_and_clears_flags,
+        test_stage48j_generator_node_descriptors,
+        test_stage48j_generator_node_frames_roundtrip_with_per_meter_sentinels,
     ]
     for test in tests:
         test()
