@@ -119,6 +119,8 @@ enum FieldId : uint16_t
     FieldIdDisplayEnabled = 10014,
     FieldIdDisplayMaintenanceWifiEnabled = 10015,
     FieldIdHomeAssistantConnected = 10016,
+    FieldIdQuant9OutputVoltage = 10023,
+    FieldIdElexOutputVoltage = 10024,
     FieldIdGaragePresence = 11001,
     FieldIdDisplayMaintenanceWifiActual = 12001,
     FieldIdKsGeneratorVoltage = 13001,
@@ -133,6 +135,10 @@ enum FieldId : uint16_t
     FieldIdZegorGeneratorEnergy = 13010,
     FieldIdZegorGeneratorFrequency = 13011,
     FieldIdZegorGeneratorPowerFactor = 13012,
+    FieldIdKsOilHours = 13013,
+    FieldIdKsOilInterval = 13014,
+    FieldIdZegorOilHours = 13015,
+    FieldIdZegorOilInterval = 13016,
     FieldIdGridSourceVoltage = 14001,
 };
 
@@ -275,6 +281,8 @@ static constexpr FieldDescriptor kFieldDescriptors[] = {
     {FieldIdDisplayEnabled, "display_enabled", "Display Enabled", "", 1, TelemetryGroup::FastTelemetry, UpdateClass::Fast},
     {FieldIdDisplayMaintenanceWifiEnabled, "display_maintenance_wifi_enabled", "Display Maintenance Wi-Fi Enabled", "", 1, TelemetryGroup::FastTelemetry, UpdateClass::Fast},
     {FieldIdHomeAssistantConnected, "home_assistant_connected", "Home Assistant Connected", "", 1, TelemetryGroup::FastTelemetry, UpdateClass::Fast},
+    {FieldIdQuant9OutputVoltage, "quant9_output_voltage", "Quant9 Output Voltage", "V", 10, TelemetryGroup::FastTelemetry, UpdateClass::Fast},
+    {FieldIdElexOutputVoltage, "elex_output_voltage", "Elex Output Voltage", "V", 10, TelemetryGroup::FastTelemetry, UpdateClass::Fast},
     {FieldIdGaragePresence, "garage_presence", "Garage Presence", "", 1, TelemetryGroup::Status, UpdateClass::Fast},
     {FieldIdDisplayMaintenanceWifiActual, "display_maintenance_wifi_actual", "Display Maintenance Wi-Fi Actual", "", 1, TelemetryGroup::Status, UpdateClass::Fast},
     {FieldIdKsGeneratorVoltage, "ks_generator_voltage", "KS Generator Voltage", "V", 10, TelemetryGroup::FastTelemetry, UpdateClass::Fast},
@@ -289,6 +297,10 @@ static constexpr FieldDescriptor kFieldDescriptors[] = {
     {FieldIdZegorGeneratorEnergy, "zegor_generator_energy", "Zegor Generator Energy", "kWh", 100, TelemetryGroup::EnergyTotals, UpdateClass::Slow},
     {FieldIdZegorGeneratorFrequency, "zegor_generator_frequency", "Zegor Generator Frequency", "Hz", 10, TelemetryGroup::FastTelemetry, UpdateClass::Fast},
     {FieldIdZegorGeneratorPowerFactor, "zegor_generator_power_factor", "Zegor Generator Power Factor", "", 100, TelemetryGroup::FastTelemetry, UpdateClass::Fast},
+    {FieldIdKsOilHours, "ks_oil_hours", "KS Oil Hours", "h", 10, TelemetryGroup::EnergyTotals, UpdateClass::Slow},
+    {FieldIdKsOilInterval, "ks_oil_interval", "KS Oil Change Interval", "h", 10, TelemetryGroup::EnergyTotals, UpdateClass::Slow},
+    {FieldIdZegorOilHours, "zegor_oil_hours", "Zegor Oil Hours", "h", 10, TelemetryGroup::EnergyTotals, UpdateClass::Slow},
+    {FieldIdZegorOilInterval, "zegor_oil_interval", "Zegor Oil Change Interval", "h", 10, TelemetryGroup::EnergyTotals, UpdateClass::Slow},
     {FieldIdGridSourceVoltage, "grid_source_voltage", "Grid Source Voltage", "V", 10, TelemetryGroup::FastTelemetry, UpdateClass::Fast},
 };
 

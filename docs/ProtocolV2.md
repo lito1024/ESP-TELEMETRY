@@ -159,6 +159,8 @@ Stage 28 policy: all fields listed here are production (status `PRODUCTION`, `UN
 | 10014 | display_enabled | Display Enabled | FAST_TELEMETRY | FAST | bool | 1 |  | PRODUCTION |
 | 10015 | display_maintenance_wifi_enabled | Display Maintenance Wi-Fi Enabled | FAST_TELEMETRY | FAST | bool | 1 |  | PRODUCTION |
 | 10016 | home_assistant_connected | Home Assistant Connected | FAST_TELEMETRY | FAST | bool | 1 |  | PRODUCTION |
+| 10023 | quant9_output_voltage | Quant9 Output Voltage | FAST_TELEMETRY | FAST | int32 | 10 | V | PRODUCTION |
+| 10024 | elex_output_voltage | Elex Output Voltage | FAST_TELEMETRY | FAST | int32 | 10 | V | PRODUCTION |
 | 11001 | garage_presence | Garage Presence | STATUS | FAST | bool | 1 |  | PRODUCTION |
 | 12001 | display_maintenance_wifi_actual | Display Maintenance Wi-Fi Actual | STATUS | FAST | bool | 1 |  | PRODUCTION |
 | 13001 | ks_generator_voltage | KS Generator Voltage | FAST_TELEMETRY | FAST | int32 | 10 | V | PRODUCTION |
@@ -173,6 +175,10 @@ Stage 28 policy: all fields listed here are production (status `PRODUCTION`, `UN
 | 13010 | zegor_generator_energy | Zegor Generator Energy | ENERGY_TOTALS | SLOW | int32 | 100 | kWh | PRODUCTION |
 | 13011 | zegor_generator_frequency | Zegor Generator Frequency | FAST_TELEMETRY | FAST | int32 | 10 | Hz | PRODUCTION |
 | 13012 | zegor_generator_power_factor | Zegor Generator Power Factor | FAST_TELEMETRY | FAST | int32 | 100 |  | PRODUCTION |
+| 13013 | ks_oil_hours | KS Oil Hours | ENERGY_TOTALS | SLOW | int32 | 10 | h | PRODUCTION |
+| 13014 | ks_oil_interval | KS Oil Change Interval | ENERGY_TOTALS | SLOW | int32 | 10 | h | PRODUCTION |
+| 13015 | zegor_oil_hours | Zegor Oil Hours | ENERGY_TOTALS | SLOW | int32 | 10 | h | PRODUCTION |
+| 13016 | zegor_oil_interval | Zegor Oil Change Interval | ENERGY_TOTALS | SLOW | int32 | 10 | h | PRODUCTION |
 | 14001 | grid_source_voltage | Grid Source Voltage | FAST_TELEMETRY | FAST | int32 | 10 | V | PRODUCTION |
 
 ## V1 Compatibility

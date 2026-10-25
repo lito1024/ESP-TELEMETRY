@@ -613,8 +613,8 @@ def test_stage48h_grid_source_voltage_descriptor() -> None:
         "TelemetryGroup::FastTelemetry, UpdateClass::Fast}"
     ) in source
     ids = [int(v) for v in re.findall(r"FieldId\w+\s*=\s*(\d+),", source)]
-    assert len(ids) == 125 and len(ids) == len(set(ids)), len(ids)
-    assert [i for i in ids if i >= 13000] == list(range(13001, 13013)) + [14001], "13xxx/14xxx ranges"
+    assert len(ids) == 131 and len(ids) == len(set(ids)), len(ids)
+    assert [i for i in ids if i >= 13000] == list(range(13001, 13017)) + [14001], "13xxx/14xxx ranges"
     assert not [i for i in ids if 10017 <= i <= 10022], "PZEM2 proposal must not be implemented"
 
 
@@ -659,7 +659,7 @@ def test_stage48j_generator_node_descriptors() -> None:
     source = FIELDS_HEADER.read_text(encoding="utf-8")
     rows = re.findall(r'\{FieldId(\w+), "(\w+)", "[^"]*", "([^"]*)", (\d+), TelemetryGroup::(\w+), UpdateClass::(\w+)\}', source)
     enum = {name: int(v) for name, v in re.findall(r"FieldId(\w+)\s*=\s*(\d+),", source)}
-    got = {enum[name]: (key, unit, int(scale), group) for name, key, unit, scale, group, _ in rows if 13000 <= enum[name] < 14000}
+    got = {enum[name]: (key, unit, int(scale), group) for name, key, unit, scale, group, _ in rows if 13001 <= enum[name] <= 13012}
     assert got == GENERATOR_FIELDS, got
     # Same representation as PZEM #1 (system_output_*, 10001-10006), in V/I/P/E/Hz/PF order.
     pzem1 = {enum[name]: (unit, int(scale), group) for name, key, unit, scale, group, _ in rows if 10001 <= enum[name] <= 10006}
@@ -669,6 +669,25 @@ def test_stage48j_generator_node_descriptors() -> None:
     # KS and Zegor are disjoint, in-order blocks.
     assert all(GENERATOR_FIELDS[i][0].startswith("ks_") for i in range(13001, 13007))
     assert all(GENERATOR_FIELDS[i][0].startswith("zegor_") for i in range(13007, 13013))
+
+
+def test_display3a_oil_and_stabilizer_descriptors() -> None:
+    """Display 3A: oil-change counters (device 6, ENERGY_TOTALS) and the
+    Controller's Quant9/Elex output voltages (device 3, FAST)."""
+    source = FIELDS_HEADER.read_text(encoding="utf-8")
+    rows = re.findall(r'\{FieldId(\w+), "(\w+)", "[^"]*", "([^"]*)", (\d+), TelemetryGroup::(\w+), UpdateClass::(\w+)\}', source)
+    enum = {name: int(v) for name, v in re.findall(r"FieldId(\w+)\s*=\s*(\d+),", source)}
+    got = {enum[name]: (key, unit, int(scale), group, uc) for name, key, unit, scale, group, uc in rows}
+    assert got[10023] == ("quant9_output_voltage", "V", 10, "FastTelemetry", "Fast"), got[10023]
+    assert got[10024] == ("elex_output_voltage", "V", 10, "FastTelemetry", "Fast"), got[10024]
+    oil = {13013: "ks_oil_hours", 13014: "ks_oil_interval", 13015: "zegor_oil_hours", 13016: "zegor_oil_interval"}
+    for fid, key in oil.items():
+        assert got[fid] == (key, "h", 10, "EnergyTotals", "Slow"), (fid, got[fid])
+    # A 6-field device-6 ENERGY_TOTALS frame (energy + oil) round-trips.
+    energy = encode_v2(0, 1000, [(13004, 6), (13010, 120), (13013, 0), (13014, 500), (13015, 120), (13016, 500)],
+                       msg_type=TYPE_ENERGY, device_id=DEVICE_GENERATOR_NODE)
+    assert feed_all(Decoder(), energy) == ["FrameReady"]
+    assert decode_v2_fields(energy)[13015] == 120
 
 
 def test_stage48j_generator_node_frames_roundtrip_with_per_meter_sentinels() -> None:
@@ -724,6 +743,7 @@ def main() -> int:
         test_stage48h_distribution_node_invalid_v0_uses_sentinel_and_clears_flags,
         test_stage48j_generator_node_descriptors,
         test_stage48j_generator_node_frames_roundtrip_with_per_meter_sentinels,
+        test_display3a_oil_and_stabilizer_descriptors,
     ]
     for test in tests:
         test()
