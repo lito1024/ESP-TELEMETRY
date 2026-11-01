@@ -729,6 +729,7 @@ GRID_INPUT_REASONS = {
     "ManualActive": 8,
     "InvalidValue": 9,
     "Manual": 10,
+    "HaLost": 11,
 }
 
 

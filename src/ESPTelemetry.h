@@ -125,13 +125,14 @@ enum class GridInputReason : uint8_t
     NodeRestart = 1,   // node booted; Relay 3 forced OFF (grid connected)
     Request = 2,       // planned isolation started by GridInputIsolate
     Released = 3,      // planned isolation ended by GridInputConnect
-    TimeLimit = 4,     // planned isolation reached its deadline (node hard cap or requested maximum)
+    TimeLimit = 4,     // isolation reached its deadline (node hard cap or requested maximum)
     ControllerLost = 5, // no GridInputIsolate repeat within the node's link timeout
     RateLimit = 6,     // refused: per-hour or per-day isolation limit reached
-    MinGap = 7,        // refused: too soon after the previous planned isolation
+    MinGap = 7,        // refused: too soon after the previous isolation
     ManualActive = 8,  // refused: Relay 3 is held ON manually (HA / web)
     InvalidValue = 9,  // refused: requested maximum outside the allowed range
-    Manual = 10        // Relay 3 switched manually (HA / web)
+    Manual = 10,       // Relay 3 switched manually (HA / web)
+    HaLost = 11        // manual isolation ended: HA API silent for the node's HA timeout
 };
 
 static constexpr int32_t kGridInputMinIsolationSeconds = 60;

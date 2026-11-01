@@ -2,8 +2,11 @@
 
 Controller (SPC) -> Distribution Node (Waveshare ESP32-S3-Relay-6CH, device 7)
 planned isolation of the external-grid input through Relay 3 (ON = grid
-isolated). Owner decision D-019 (HA-059): Home Assistant asks the Controller,
-the Controller asks the node, and the node keeps the final guards itself.
+isolated). Owner decision D-019 (HA-059) chose variant R: Home Assistant
+drives the node's own "Relay 3" switch and the node keeps the final guards
+itself (time cap, rate limits, HA-silence timeout). These commands are the
+SPC path, kept for later; the node accepts them, no Controller sends them
+yet. Manual (HA) and planned (Controller) isolations share the node's limits.
 
 Hand-maintained (not generated): `CommandId`, `GridInputReason`,
 `GridInputStatus` and the pack/unpack helpers live in `src/ESPTelemetry.h`.
@@ -50,7 +53,8 @@ Status word bits:
 
 `GridInputReason`: 0 None, 1 NodeRestart, 2 Request, 3 Released, 4 TimeLimit,
 5 ControllerLost, 6 RateLimit, 7 MinGap, 8 ManualActive, 9 InvalidValue,
-10 Manual. A refusal leaves the state unchanged and reports its own reason.
+10 Manual, 11 HaLost (manual isolation ended: HA API silent). A refusal
+leaves the state unchanged and reports its own reason.
 
 ## Compatibility
 
