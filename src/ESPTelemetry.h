@@ -60,7 +60,18 @@ enum class DecodeResult : uint8_t
 enum class CommandId : uint8_t
 {
     SetMaxBackflowPower = 1,
-    SetZeroExport = 2
+    SetZeroExport = 2,
+    // Stage 53 (ESP-028, D-019): Controller -> Distribution Node (device 7)
+    // planned grid-input isolation through Waveshare Relay 3. Level-triggered:
+    // the Controller repeats its current wish every few seconds, and the node
+    // ends a planned isolation by itself when the repeats stop. See
+    // docs/GridInputCommands.md.
+    //   GridInputIsolate: value = requested maximum isolation, seconds
+    //                     (kGridInputMinIsolationSeconds..kGridInputMaxIsolationSeconds);
+    //                     starts a planned isolation or refreshes the running one.
+    //   GridInputConnect: value = 0; ends a planned isolation (never a manual one).
+    GridInputIsolate = 3,
+    GridInputConnect = 4
 };
 
 // Terminal result codes for a completed command. Every command reaches
@@ -103,6 +114,71 @@ struct CommandResultPayload
     int32_t previousValue;
     int32_t readbackValue;
 };
+
+// Stage 53 (ESP-028): why the grid input is in its current state, as kept by
+// the Distribution Node. Carried in every grid-input CommandResult (packed,
+// see GridInputStatus). A refusal leaves the state unchanged and reports its
+// own reason (RateLimit / MinGap / ManualActive / InvalidValue).
+enum class GridInputReason : uint8_t
+{
+    None = 0,
+    NodeRestart = 1,   // node booted; Relay 3 forced OFF (grid connected)
+    Request = 2,       // planned isolation started by GridInputIsolate
+    Released = 3,      // planned isolation ended by GridInputConnect
+    TimeLimit = 4,     // planned isolation reached its deadline (node hard cap or requested maximum)
+    ControllerLost = 5, // no GridInputIsolate repeat within the node's link timeout
+    RateLimit = 6,     // refused: per-hour or per-day isolation limit reached
+    MinGap = 7,        // refused: too soon after the previous planned isolation
+    ManualActive = 8,  // refused: Relay 3 is held ON manually (HA / web)
+    InvalidValue = 9,  // refused: requested maximum outside the allowed range
+    Manual = 10        // Relay 3 switched manually (HA / web)
+};
+
+static constexpr int32_t kGridInputMinIsolationSeconds = 60;
+static constexpr int32_t kGridInputMaxIsolationSeconds = 3600;
+
+// Stage 53 (ESP-028): Distribution Node grid-input state, returned in the
+// CommandResult of every GridInputIsolate / GridInputConnect:
+//   requestedValue = the command's value (echo)
+//   previousValue  = packGridInputStatusWord(): bits 0-7 reason,
+//                    bit 8 Relay 3 ON (grid isolated), bit 9 planned isolation,
+//                    bit 10 manual isolation, bits 16-23 planned isolations
+//                    started in the last hour, bits 24-30 in the last 24 h
+//   readbackValue  = seconds left of the planned isolation (0 if none)
+struct GridInputStatus
+{
+    bool relayIsolated;
+    bool plannedIsolation;
+    bool manualIsolation;
+    GridInputReason reason;
+    uint8_t isolationsLastHour;
+    uint8_t isolationsLast24h; // saturates at 127
+    int32_t remainingSeconds;
+};
+
+inline int32_t packGridInputStatusWord(const GridInputStatus &status)
+{
+    const uint32_t last24h = status.isolationsLast24h > 127 ? 127u : status.isolationsLast24h;
+    const uint32_t word = static_cast<uint32_t>(static_cast<uint8_t>(status.reason)) |
+                          (status.relayIsolated ? (1u << 8) : 0u) | (status.plannedIsolation ? (1u << 9) : 0u) |
+                          (status.manualIsolation ? (1u << 10) : 0u) |
+                          (static_cast<uint32_t>(status.isolationsLastHour) << 16) | (last24h << 24);
+    return static_cast<int32_t>(word);
+}
+
+inline GridInputStatus unpackGridInputStatus(int32_t statusWord, int32_t remainingSeconds)
+{
+    const uint32_t word = static_cast<uint32_t>(statusWord);
+    GridInputStatus status{};
+    status.reason = static_cast<GridInputReason>(word & 0xFFu);
+    status.relayIsolated = (word & (1u << 8)) != 0;
+    status.plannedIsolation = (word & (1u << 9)) != 0;
+    status.manualIsolation = (word & (1u << 10)) != 0;
+    status.isolationsLastHour = static_cast<uint8_t>((word >> 16) & 0xFFu);
+    status.isolationsLast24h = static_cast<uint8_t>((word >> 24) & 0x7Fu);
+    status.remainingSeconds = remainingSeconds < 0 ? 0 : remainingSeconds;
+    return status;
+}
 
 enum SnapshotFlags : uint16_t
 {

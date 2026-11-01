@@ -710,6 +710,93 @@ def test_stage48j_generator_node_frames_roundtrip_with_per_meter_sentinels() -> 
     assert feed_all(decoder, nxt) == ["FrameReady"]
 
 
+def _header_enum(source: str, enum_name: str) -> dict[str, int]:
+    body = re.search(r"enum class " + enum_name + r" : uint8_t\s*\{(.*?)\};", source, re.S)
+    assert body, enum_name
+    text = re.sub(r"//[^\n]*", "", body.group(1))
+    return {name: int(value) for name, value in re.findall(r"(\w+)\s*=\s*(\d+)", text)}
+
+
+GRID_INPUT_REASONS = {
+    "None": 0,
+    "NodeRestart": 1,
+    "Request": 2,
+    "Released": 3,
+    "TimeLimit": 4,
+    "ControllerLost": 5,
+    "RateLimit": 6,
+    "MinGap": 7,
+    "ManualActive": 8,
+    "InvalidValue": 9,
+    "Manual": 10,
+}
+
+
+def pack_grid_input_status(reason: int, relay: bool, planned: bool, manual: bool, last_hour: int, last_24h: int) -> int:
+    # Python mirror of packGridInputStatusWord() (ESPTelemetry.h).
+    word = (reason & 0xFF) | (int(relay) << 8) | (int(planned) << 9) | (int(manual) << 10)
+    word |= (last_hour & 0xFF) << 16
+    word |= min(last_24h, 127) << 24
+    return struct.unpack("<i", struct.pack("<I", word))[0]
+
+
+def test_esp028_grid_input_command_ids_appended_only() -> None:
+    proto = PROTOCOL_HEADER.read_text(encoding="utf-8")
+    assert _header_enum(proto, "CommandId") == {
+        "SetMaxBackflowPower": 1,
+        "SetZeroExport": 2,
+        "GridInputIsolate": 3,
+        "GridInputConnect": 4,
+    }
+    assert _header_enum(proto, "GridInputReason") == GRID_INPUT_REASONS
+    assert "kGridInputMinIsolationSeconds = 60;" in proto
+    assert "kGridInputMaxIsolationSeconds = 3600;" in proto
+
+
+def test_esp028_grid_input_status_word_layout_matches_header() -> None:
+    proto = PROTOCOL_HEADER.read_text(encoding="utf-8")
+    pack = re.search(r"inline int32_t packGridInputStatusWord\(.*?\n\}", proto, re.S).group(0)
+    for fragment in ("(1u << 8)", "(1u << 9)", "(1u << 10)", "isolationsLastHour) << 16", "last24h << 24", "? 127u"):
+        assert fragment in pack, fragment
+    unpack = re.search(r"inline GridInputStatus unpackGridInputStatus\(.*?\n\}", proto, re.S).group(0)
+    for fragment in ("word & 0xFFu", "(1u << 8)", "(1u << 9)", "(1u << 10)", "(word >> 16) & 0xFFu", "(word >> 24) & 0x7Fu"):
+        assert fragment in unpack, fragment
+    # Saturation keeps bit 31 clear, so the packed word is never negative and
+    # never the int32 invalid sentinel.
+    word = pack_grid_input_status(GRID_INPUT_REASONS["TimeLimit"], True, True, True, 255, 500)
+    assert word > 0
+    assert word != -0x80000000
+
+
+def test_esp028_grid_input_result_roundtrip_carries_status() -> None:
+    status = pack_grid_input_status(GRID_INPUT_REASONS["Request"], True, True, False, 1, 3)
+    frame = encode_command_result(
+        9,
+        5000,
+        device_id=7,
+        command_id=3,
+        command_sequence=41,
+        result_code=RESULT_SUCCESS,
+        requested_value=1800,
+        previous_value=status,
+        readback_value=1799,
+    )
+    assert feed_all(Decoder(), frame) == ["FrameReady"]
+    fields = decode_command_result_fields(frame)
+    assert fields["device_id"] == 7 and fields["command_id"] == 3 and fields["command_sequence"] == 41
+    word = fields["previous_value"] & 0xFFFFFFFF
+    assert word & 0xFF == GRID_INPUT_REASONS["Request"]
+    assert (word >> 8) & 1 == 1 and (word >> 9) & 1 == 1 and (word >> 10) & 1 == 0
+    assert (word >> 16) & 0xFF == 1 and (word >> 24) & 0x7F == 3
+    assert fields["requested_value"] == 1800 and fields["readback_value"] == 1799
+
+
+def test_esp028_grid_input_command_roundtrip_to_device_7() -> None:
+    frame = encode_command(3, 6000, device_id=7, command_id=4, command_sequence=42, value=0)
+    assert feed_all(Decoder(), frame) == ["FrameReady"]
+    assert decode_command_fields(frame) == {"device_id": 7, "command_id": 4, "command_sequence": 42, "value": 0}
+
+
 def main() -> int:
     tests = [
         test_crc,
@@ -744,6 +831,10 @@ def main() -> int:
         test_stage48j_generator_node_descriptors,
         test_stage48j_generator_node_frames_roundtrip_with_per_meter_sentinels,
         test_display3a_oil_and_stabilizer_descriptors,
+        test_esp028_grid_input_command_ids_appended_only,
+        test_esp028_grid_input_status_word_layout_matches_header,
+        test_esp028_grid_input_result_roundtrip_carries_status,
+        test_esp028_grid_input_command_roundtrip_to_device_7,
     ]
     for test in tests:
         test()
