@@ -18,6 +18,7 @@ enum FieldId : uint16_t
     FieldIdFeedInGridEnabled = 7001,  // UNDER_REVIEW
     FieldIdMaxBackflowPower = 7002,
     FieldIdZeroExportEnabled = 7003,
+    FieldIdAcChargeCurrentFromGrid = 7004,  // UNDER_REVIEW
     FieldIdBatteryCapacity = 9001,
     FieldIdBmsMaxCellTemperature = 9002,
     FieldIdPowerToGrid = 9003,
@@ -180,6 +181,7 @@ static constexpr FieldDescriptor kFieldDescriptors[] = {
     {FieldIdFeedInGridEnabled, "feed_in_grid_enabled", "Feed-In Grid Enabled", "", 1, TelemetryGroup::Status, UpdateClass::Normal},
     {FieldIdMaxBackflowPower, "max_backflow_power", "Max Backflow Power", "%", 1, TelemetryGroup::Status, UpdateClass::Normal},
     {FieldIdZeroExportEnabled, "zero_export_enabled", "Zero Export", "", 1, TelemetryGroup::Status, UpdateClass::Normal},
+    {FieldIdAcChargeCurrentFromGrid, "ac_charge_current_from_grid", "AC Charge Current", "A", 1, TelemetryGroup::Status, UpdateClass::Normal},
     {FieldIdBatteryCapacity, "battery_capacity", "Battery Capacity", "Ah", 1, TelemetryGroup::Diagnostics, UpdateClass::Slow},
     {FieldIdBmsMaxCellTemperature, "bms_max_cell_temperature", "BMS Max Cell Temperature", "deg C", 10, TelemetryGroup::Diagnostics, UpdateClass::Normal},
     {FieldIdPowerToGrid, "power_to_grid", "Power To Grid", "W", 1, TelemetryGroup::FastTelemetry, UpdateClass::Fast},

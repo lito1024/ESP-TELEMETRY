@@ -613,7 +613,8 @@ def test_stage48h_grid_source_voltage_descriptor() -> None:
         "TelemetryGroup::FastTelemetry, UpdateClass::Fast}"
     ) in source
     ids = [int(v) for v in re.findall(r"FieldId\w+\s*=\s*(\d+),", source)]
-    assert len(ids) == 131 and len(ids) == len(set(ids)), len(ids)
+    # ESP-030: +1 (FieldIdAcChargeCurrentFromGrid = 7004).
+    assert len(ids) == 132 and len(ids) == len(set(ids)), len(ids)
     assert [i for i in ids if i >= 13000] == list(range(13001, 13017)) + [14001], "13xxx/14xxx ranges"
     assert not [i for i in ids if 10017 <= i <= 10022], "PZEM2 proposal must not be implemented"
 
@@ -798,6 +799,15 @@ def test_esp028_grid_input_command_roundtrip_to_device_7() -> None:
     assert decode_command_fields(frame) == {"device_id": 7, "command_id": 4, "command_sequence": 42, "value": 0}
 
 
+def test_esp030_ac_charge_current_field_descriptor() -> None:
+    source = FIELDS_HEADER.read_text(encoding="utf-8")
+    assert "FieldIdAcChargeCurrentFromGrid = 7004" in source
+    assert (
+        '{FieldIdAcChargeCurrentFromGrid, "ac_charge_current_from_grid", "AC Charge Current", "A", 1, '
+        "TelemetryGroup::Status, UpdateClass::Normal}"
+    ) in source
+
+
 def main() -> int:
     tests = [
         test_crc,
@@ -836,6 +846,7 @@ def main() -> int:
         test_esp028_grid_input_status_word_layout_matches_header,
         test_esp028_grid_input_result_roundtrip_carries_status,
         test_esp028_grid_input_command_roundtrip_to_device_7,
+        test_esp030_ac_charge_current_field_descriptor,
     ]
     for test in tests:
         test()

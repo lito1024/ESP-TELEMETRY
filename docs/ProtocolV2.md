@@ -58,6 +58,7 @@ Stage 28 policy: all fields listed here are production (status `PRODUCTION`, `UN
 | 7001 | feed_in_grid_enabled | Feed-In Grid Enabled | STATUS | NORMAL | bool | 1 |  | UNDER_REVIEW |
 | 7002 | max_backflow_power | Max Backflow Power | STATUS | NORMAL | int32 | 1 | % | PRODUCTION |
 | 7003 | zero_export_enabled | Zero Export | STATUS | NORMAL | bool | 1 |  | PRODUCTION |
+| 7004 | ac_charge_current_from_grid | AC Charge Current | STATUS | NORMAL | int32 | 1 | A | UNDER_REVIEW |
 | 9001 | battery_capacity | Battery Capacity | DIAGNOSTICS | SLOW | int32 | 1 | Ah | PRODUCTION |
 | 9002 | bms_max_cell_temperature | BMS Max Cell Temperature | DIAGNOSTICS | NORMAL | int32 | 10 | deg C | PRODUCTION |
 | 9003 | power_to_grid | Power To Grid | FAST_TELEMETRY | FAST | int32 | 1 | W | PRODUCTION |
