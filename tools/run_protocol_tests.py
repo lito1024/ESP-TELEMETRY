@@ -749,10 +749,17 @@ def test_esp028_grid_input_command_ids_appended_only() -> None:
         "SetZeroExport": 2,
         "GridInputIsolate": 3,
         "GridInputConnect": 4,
+        "SetAcChargeCurrent": 5,
     }
     assert _header_enum(proto, "GridInputReason") == GRID_INPUT_REASONS
     assert "kGridInputMinIsolationSeconds = 60;" in proto
     assert "kGridInputMaxIsolationSeconds = 3600;" in proto
+
+
+def test_esp030_ac_charge_current_command_range() -> None:
+    proto = PROTOCOL_HEADER.read_text(encoding="utf-8")
+    assert "kAcChargeCurrentMinAmps = 0;" in proto
+    assert "kAcChargeCurrentMaxAmps = 40;" in proto
 
 
 def test_esp028_grid_input_status_word_layout_matches_header() -> None:
@@ -843,6 +850,7 @@ def main() -> int:
         test_stage48j_generator_node_frames_roundtrip_with_per_meter_sentinels,
         test_display3a_oil_and_stabilizer_descriptors,
         test_esp028_grid_input_command_ids_appended_only,
+        test_esp030_ac_charge_current_command_range,
         test_esp028_grid_input_status_word_layout_matches_header,
         test_esp028_grid_input_result_roundtrip_carries_status,
         test_esp028_grid_input_command_roundtrip_to_device_7,

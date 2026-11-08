@@ -71,8 +71,16 @@ enum class CommandId : uint8_t
     //                     starts a planned isolation or refreshes the running one.
     //   GridInputConnect: value = 0; ends a planned isolation (never a manual one).
     GridInputIsolate = 3,
-    GridInputConnect = 4
+    GridInputConnect = 4,
+    // ESP-030 phase 2 (D-020): Controller -> Gateway (devices 1-2), AC charge
+    // current from grid in A (kAcChargeCurrentMinAmps..kAcChargeCurrentMaxAmps),
+    // holding 168 on the Gateway side. Same transaction model as
+    // SetMaxBackflowPower: previousValue / readbackValue are amps.
+    SetAcChargeCurrent = 5
 };
+
+static constexpr int32_t kAcChargeCurrentMinAmps = 0;
+static constexpr int32_t kAcChargeCurrentMaxAmps = 40;
 
 // Terminal result codes for a completed command. Every command reaches
 // exactly one of these -- there is no "in progress" value on the wire;
@@ -101,7 +109,7 @@ struct CommandPayload
     uint8_t deviceId;
     uint8_t commandId;      // CommandId
     uint16_t commandSequence;
-    int32_t value;          // percent (0-100) for SetMaxBackflowPower, 0/1 for SetZeroExport
+    int32_t value;          // percent (0-100) for SetMaxBackflowPower, 0/1 for SetZeroExport, A for SetAcChargeCurrent
 };
 
 struct CommandResultPayload
