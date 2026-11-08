@@ -189,6 +189,59 @@ inline GridInputStatus unpackGridInputStatus(int32_t statusWord, int32_t remaini
     return status;
 }
 
+// ESP-038 D/E (D-020): read-only mirror of raw LuxPower registers, Gateway ->
+// Controller. Carried as ordinary v2 telemetry field records (Diagnostics
+// group, same flags as every other frame of that Gateway) in a FieldId range
+// the generated catalog never uses, so Bridge forwards them unchanged and
+// Display / older Controllers ignore them as unknown field ids. One record =
+// two consecutive registers of one space: value bits 0-15 = register
+// `address` (even), bits 16-31 = register `address + 1`. Any value is
+// legitimate here, including kInvalidI32 (0x0000 / 0x8000). Register meaning
+// (scale, sign, bits) lives only in the Controller's register map; nothing in
+// this protocol writes a register by address.
+enum class RawRegisterSpace : uint8_t
+{
+    Holding = 0,
+    Input = 1
+};
+
+static constexpr uint16_t kRawRegisterFieldIdBase = 0xE000;
+static constexpr uint16_t kRawRegisterFieldIdEnd = 0xE800;  // exclusive
+static constexpr uint16_t kRawRegisterMaxAddress = 2047;
+
+inline uint16_t rawRegisterFieldId(RawRegisterSpace space, uint16_t address)
+{
+    return static_cast<uint16_t>(kRawRegisterFieldIdBase | (static_cast<uint16_t>(space) << 10) |
+                                 ((address >> 1) & 0x3FFu));
+}
+
+inline bool isRawRegisterFieldId(uint16_t fieldId)
+{
+    return fieldId >= kRawRegisterFieldIdBase && fieldId < kRawRegisterFieldIdEnd;
+}
+
+inline bool decodeRawRegisterFieldId(uint16_t fieldId, RawRegisterSpace &space, uint16_t &firstAddress)
+{
+    if (!isRawRegisterFieldId(fieldId))
+    {
+        return false;
+    }
+    space = (fieldId & (1u << 10)) != 0 ? RawRegisterSpace::Input : RawRegisterSpace::Holding;
+    firstAddress = static_cast<uint16_t>((fieldId & 0x3FFu) << 1);
+    return true;
+}
+
+inline int32_t packRawRegisterPair(uint16_t first, uint16_t second)
+{
+    return static_cast<int32_t>(static_cast<uint32_t>(first) | (static_cast<uint32_t>(second) << 16));
+}
+
+inline uint16_t rawRegisterPairWord(int32_t value, uint8_t index)
+{
+    const uint32_t word = static_cast<uint32_t>(value);
+    return static_cast<uint16_t>(index == 0 ? (word & 0xFFFFu) : (word >> 16));
+}
+
 enum SnapshotFlags : uint16_t
 {
     SnapshotFlagFeedInEnabled = 1u << 0,

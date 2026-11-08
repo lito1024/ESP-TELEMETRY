@@ -815,6 +815,43 @@ def test_esp030_ac_charge_current_field_descriptor() -> None:
     ) in source
 
 
+def raw_register_field_id(space: int, address: int) -> int:
+    return 0xE000 | (space << 10) | ((address >> 1) & 0x3FF)
+
+
+def test_esp038_raw_register_field_ids_outside_catalog() -> None:
+    proto = PROTOCOL_HEADER.read_text(encoding="utf-8")
+    assert "kRawRegisterFieldIdBase = 0xE000;" in proto
+    assert "kRawRegisterFieldIdEnd = 0xE800;" in proto
+    assert _header_enum(proto, "RawRegisterSpace") == {"Holding": 0, "Input": 1}
+    catalog = [int(v) for v in re.findall(r"\bFieldId\w+ = (\d+)", FIELDS_HEADER.read_text(encoding="utf-8"))]
+    assert catalog and max(catalog) < 0xE000, max(catalog)
+    # Both spaces, every even address 0..2046, map into [base, end) without overlap.
+    ids = {raw_register_field_id(s, a) for s in (0, 1) for a in range(0, 2048, 2)}
+    assert len(ids) == 2048 and min(ids) == 0xE000 and max(ids) == 0xE7FF
+    assert raw_register_field_id(0, 248) == 0xE07C and raw_register_field_id(1, 250) == 0xE47D
+    pack = re.search(r"inline uint16_t rawRegisterFieldId\(.*?\n\}", proto, re.S).group(0)
+    assert "<< 10" in pack and "(address >> 1) & 0x3FFu" in pack
+    decode = re.search(r"inline bool decodeRawRegisterFieldId\(.*?\n\}", proto, re.S).group(0)
+    assert "(1u << 10)" in decode and "(fieldId & 0x3FFu) << 1" in decode
+
+
+def test_esp038_raw_register_pair_roundtrip_in_diagnostics_frame() -> None:
+    # Register 0x0000 then 0x8000 packs to the int32 invalid sentinel: it must
+    # still travel as an ordinary value.
+    pairs = [(0, 248, 0x1234, 0xABCD), (1, 250, 0x0000, 0x8000), (0, 0, 0xFFFF, 0x0001)]
+    fields = []
+    for space, address, first, second in pairs:
+        value = struct.unpack("<i", struct.pack("<I", first | (second << 16)))[0]
+        fields.append((raw_register_field_id(space, address), value))
+    frame = encode_v2(7, 1000, fields, msg_type=TYPE_DIAGNOSTICS, device_id=1)
+    assert feed_all(Decoder(), frame) == ["FrameReady"]
+    decoded = decode_v2_fields(frame)
+    for space, address, first, second in pairs:
+        word = decoded[raw_register_field_id(space, address)] & 0xFFFFFFFF
+        assert (word & 0xFFFF, word >> 16) == (first, second)
+
+
 def main() -> int:
     tests = [
         test_crc,
@@ -855,6 +892,8 @@ def main() -> int:
         test_esp028_grid_input_result_roundtrip_carries_status,
         test_esp028_grid_input_command_roundtrip_to_device_7,
         test_esp030_ac_charge_current_field_descriptor,
+        test_esp038_raw_register_field_ids_outside_catalog,
+        test_esp038_raw_register_pair_roundtrip_in_diagnostics_frame,
     ]
     for test in tests:
         test()
